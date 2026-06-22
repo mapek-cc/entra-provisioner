@@ -509,6 +509,18 @@ admin_consent() {  # app_id
   az ad app permission admin-consent --id "$id"
 }
 
+# Tag a service principal so it appears in the portal's default "Enterprise applications" view
+# (SPs created via CLI/Graph lack this tag and are otherwise hidden behind the "All Applications" filter).
+tag_enterprise_app() {  # sp_object_id
+  local sp="$1" tags
+  tags=$(az ad sp show --id "$sp" --query tags -o json 2>/dev/null || echo '[]')
+  if [[ "$tags" != *WindowsAzureActiveDirectoryIntegratedApp* ]]; then
+    tags=$(jq -nc --argjson t "$tags" '$t + ["WindowsAzureActiveDirectoryIntegratedApp"]')
+    az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$sp" \
+      --headers "Content-Type=application/json" --body "{\"tags\":$tags}" >/dev/null
+  fi
+}
+
 # Idempotently assign a principal (group or user object id) to an app role.
 assign_principal_role() {  # api_app_id api_sp_id role_value principal_id
   local app_id="$1" sp_id="$2" role="$3" pid="$4" role_id existing body
@@ -618,6 +630,7 @@ provision_env() {
   else
     echo "  existing  API service principal $api_sp_id"
   fi
+  tag_enterprise_app "$api_sp_id"
 
   # 3. SPA app (optional) ------------------------------------------------------
   local spa_app_id=""
@@ -657,6 +670,7 @@ provision_env() {
     else
       echo "  existing  SPA service principal $spa_sp_id"
     fi
+    tag_enterprise_app "$spa_sp_id"
 
     # Delegated permission SPA → API (access_as_user / Scope).
     local live_scope_id
@@ -748,6 +762,17 @@ function Invoke-AdminConsent([string]$AppId) {
     try { az ad app permission admin-consent --id $AppId 2>$null; return } catch { Start-Sleep -Seconds ($i * 3) }
   }
   az ad app permission admin-consent --id $AppId
+}
+
+# Tag a service principal so it appears in the portal's default "Enterprise applications" view.
+function Set-EnterpriseAppTag([string]$SpId) {
+  $tags = @(az ad sp show --id $SpId --query tags -o json 2>$null | ConvertFrom-Json)
+  if ($tags -notcontains 'WindowsAzureActiveDirectoryIntegratedApp') {
+    $bodyFile = New-JsonBodyFile @{ tags = (@($tags) + 'WindowsAzureActiveDirectoryIntegratedApp') }
+    az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SpId" `
+      --headers "Content-Type=application/json" --body "@$bodyFile" | Out-Null
+    Remove-Item -LiteralPath $bodyFile -ErrorAction SilentlyContinue
+  }
 }
 
 # Return an existing scope/role id by value, or a fresh GUID (preserves UUIDs on re-run).
@@ -877,6 +902,7 @@ function Invoke-ProvisionEnv {
   } else {
     Write-Host "  existing  API service principal $apiSpId"
   }
+  Set-EnterpriseAppTag $apiSpId
 
   # 3. SPA app (optional) ------------------------------------------------------
   $spaAppId = ''
@@ -922,6 +948,7 @@ function Invoke-ProvisionEnv {
     } else {
       Write-Host "  existing  SPA service principal $spaSpId"
     }
+    Set-EnterpriseAppTag $spaSpId
 
     # Delegated permission SPA → API (access_as_user / Scope).
     $liveScopeId = az ad app show --id $apiAppId `
