@@ -499,6 +499,16 @@ sanitize_nick() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' .' '--' | sed 's
 # The primary environment (PRIMARY_ENV) drops the -<env> suffix; all other envs keep it.
 env_sfx() { if [[ -n "$PRIMARY_ENV" && "$1" == "$PRIMARY_ENV" ]]; then printf ''; else printf -- '-%s' "$1"; fi; }
 
+# Admin consent can 404 right after an app/SP is created (directory replication lag); retry briefly.
+admin_consent() {  # app_id
+  local id="$1" i
+  for i in 1 2 3 4 5; do
+    az ad app permission admin-consent --id "$id" 2>/dev/null && return 0
+    sleep $((i * 3))
+  done
+  az ad app permission admin-consent --id "$id"
+}
+
 # Idempotently assign a principal (group or user object id) to an app role.
 assign_principal_role() {  # api_app_id api_sp_id role_value principal_id
   local app_id="$1" sp_id="$2" role="$3" pid="$4" role_id existing body
@@ -533,7 +543,7 @@ provision_env() {
   # 1. API app registration ----------------------------------------------------
   echo "→ API app registration"
   local api_app_id api_obj_id
-  api_app_id=$(az ad app list --display-name "$api_name" --query "[0].appId" -o tsv)
+  api_app_id=$(az ad app list --display-name "$api_name" --query "[?displayName=='$api_name'].appId | [0]" -o tsv)
   if [[ -z "$api_app_id" ]]; then
     api_app_id=$(az ad app create --display-name "$api_name" \
       --sign-in-audience "$SIGN_IN_AUDIENCE" --query appId -o tsv)
@@ -613,7 +623,7 @@ provision_env() {
   local spa_app_id=""
   if [[ $HAS_SPA -eq 1 ]]; then
     echo "→ SPA app registration"
-    spa_app_id=$(az ad app list --display-name "$spa_name" --query "[0].appId" -o tsv)
+    spa_app_id=$(az ad app list --display-name "$spa_name" --query "[?displayName=='$spa_name'].appId | [0]" -o tsv)
     if [[ -z "$spa_app_id" ]]; then
       spa_app_id=$(az ad app create --display-name "$spa_name" \
         --sign-in-audience "$SIGN_IN_AUDIENCE" --query appId -o tsv)
@@ -657,7 +667,7 @@ provision_env() {
     echo "  granted   access_as_user (delegated)"
 
     if [[ $DO_CONSENT -eq 1 ]]; then
-      az ad app permission admin-consent --id "$spa_app_id"
+      admin_consent "$spa_app_id"
       echo "  consent   granted for $spa_name"
     else
       echo "  consent   skipped (--no-consent); run: az ad app permission admin-consent --id $spa_app_id"
@@ -732,6 +742,14 @@ function Get-MailNickname {
 # The primary environment ($PrimaryEnv) drops the -<env> suffix; all other envs keep it.
 function Get-EnvSfx([string]$EnvName) { if ($PrimaryEnv -and $EnvName -eq $PrimaryEnv) { '' } else { "-$EnvName" } }
 
+# Admin consent can 404 right after an app/SP is created (directory replication lag); retry briefly.
+function Invoke-AdminConsent([string]$AppId) {
+  for ($i = 1; $i -le 5; $i++) {
+    try { az ad app permission admin-consent --id $AppId 2>$null; return } catch { Start-Sleep -Seconds ($i * 3) }
+  }
+  az ad app permission admin-consent --id $AppId
+}
+
 # Return an existing scope/role id by value, or a fresh GUID (preserves UUIDs on re-run).
 function Read-ExistingId {
   param($Existing, [string]$Kind, [string]$Value)
@@ -784,7 +802,7 @@ function Invoke-ProvisionEnv {
 
   # 1. API app registration ----------------------------------------------------
   Write-Host "→ API app registration"
-  $apiAppId = az ad app list --display-name $apiName --query "[0].appId" -o tsv
+  $apiAppId = az ad app list --display-name $apiName --query "[?displayName=='$apiName'].appId | [0]" -o tsv
   if (-not $apiAppId) {
     $apiAppId = az ad app create --display-name $apiName `
       --sign-in-audience $SignInAudience --query appId -o tsv
@@ -864,7 +882,7 @@ function Invoke-ProvisionEnv {
   $spaAppId = ''
   if ($HasSpa) {
     Write-Host "→ SPA app registration"
-    $spaAppId = az ad app list --display-name $spaName --query "[0].appId" -o tsv
+    $spaAppId = az ad app list --display-name $spaName --query "[?displayName=='$spaName'].appId | [0]" -o tsv
     if (-not $spaAppId) {
       $spaAppId = az ad app create --display-name $spaName `
         --sign-in-audience $SignInAudience --query appId -o tsv
@@ -915,7 +933,7 @@ function Invoke-ProvisionEnv {
     Write-Host "  granted   access_as_user (delegated)"
 
     if ($DoConsent) {
-      az ad app permission admin-consent --id $spaAppId
+      Invoke-AdminConsent $spaAppId
       Write-Host "  consent   granted for $spaName"
     } else {
       Write-Host "  consent   skipped (--no-consent); run: az ad app permission admin-consent --id $spaAppId"
@@ -1016,21 +1034,23 @@ grant_graph_permissions() {  # app_id
 }
 
 apply_graph_for_env() {  # env
-  local env="$1" app_id
+  local env="$1" app_id name
   if [[ $GRAPH_TO_API -eq 1 ]]; then
-    app_id=$(az ad app list --display-name "${PROJECT}-API$(env_sfx "$env")" --query "[0].appId" -o tsv)
+    name="${PROJECT}-API$(env_sfx "$env")"
+    app_id=$(az ad app list --display-name "$name" --query "[?displayName=='$name'].appId | [0]" -o tsv)
     if [[ -n "$app_id" ]]; then
-      echo "→ ${PROJECT}-API$(env_sfx "$env")"
+      echo "→ $name"
       grant_graph_permissions "$app_id"
-      [[ $DO_CONSENT -eq 1 ]] && { az ad app permission admin-consent --id "$app_id"; echo "  consent   granted"; }
+      [[ $DO_CONSENT -eq 1 ]] && { admin_consent "$app_id"; echo "  consent   granted"; }
     fi
   fi
   if [[ $GRAPH_TO_SPA -eq 1 && $HAS_SPA -eq 1 ]]; then
-    app_id=$(az ad app list --display-name "${PROJECT}-SPA$(env_sfx "$env")" --query "[0].appId" -o tsv)
+    name="${PROJECT}-SPA$(env_sfx "$env")"
+    app_id=$(az ad app list --display-name "$name" --query "[?displayName=='$name'].appId | [0]" -o tsv)
     if [[ -n "$app_id" ]]; then
-      echo "→ ${PROJECT}-SPA$(env_sfx "$env")"
+      echo "→ $name"
       grant_graph_permissions "$app_id"
-      [[ $DO_CONSENT -eq 1 ]] && { az ad app permission admin-consent --id "$app_id"; echo "  consent   granted"; }
+      [[ $DO_CONSENT -eq 1 ]] && { admin_consent "$app_id"; echo "  consent   granted"; }
     fi
   fi
 }
@@ -1067,19 +1087,21 @@ function Grant-GraphPermissions {
 function Invoke-GraphForEnv {
   param([string]$EnvName)
   if ($GraphToApi) {
-    $appId = az ad app list --display-name "$Project-API$(Get-EnvSfx $EnvName)" --query "[0].appId" -o tsv
+    $name = "$Project-API$(Get-EnvSfx $EnvName)"
+    $appId = az ad app list --display-name "$name" --query "[?displayName=='$name'].appId | [0]" -o tsv
     if ($appId) {
-      Write-Host "→ $Project-API$(Get-EnvSfx $EnvName)"
+      Write-Host "→ $name"
       Grant-GraphPermissions -AppId $appId
-      if ($DoConsent) { az ad app permission admin-consent --id $appId; Write-Host "  consent   granted" }
+      if ($DoConsent) { Invoke-AdminConsent $appId; Write-Host "  consent   granted" }
     }
   }
   if ($GraphToSpa -and $HasSpa) {
-    $appId = az ad app list --display-name "$Project-SPA$(Get-EnvSfx $EnvName)" --query "[0].appId" -o tsv
+    $name = "$Project-SPA$(Get-EnvSfx $EnvName)"
+    $appId = az ad app list --display-name "$name" --query "[?displayName=='$name'].appId | [0]" -o tsv
     if ($appId) {
-      Write-Host "→ $Project-SPA$(Get-EnvSfx $EnvName)"
+      Write-Host "→ $name"
       Grant-GraphPermissions -AppId $appId
-      if ($DoConsent) { az ad app permission admin-consent --id $appId; Write-Host "  consent   granted" }
+      if ($DoConsent) { Invoke-AdminConsent $appId; Write-Host "  consent   granted" }
     }
   }
 }
@@ -1097,7 +1119,7 @@ foreach ($EnvName in $Envs) { Invoke-GraphForEnv -EnvName $EnvName }
 ensure_client_secret() {  # env
   local env="$1" app_name app_id existing val
   app_name="${PROJECT}-API$(env_sfx "$env")"
-  app_id=$(az ad app list --display-name "$app_name" --query "[0].appId" -o tsv)
+  app_id=$(az ad app list --display-name "$app_name" --query "[?displayName=='$app_name'].appId | [0]" -o tsv)
   echo "→ $app_name"
   if [[ -z "$app_id" ]]; then echo "  WARN: app not found; skipping secret" >&2; return 0; fi
   existing=$(az ad app credential list --id "$app_id" --query "[?displayName=='$SECRET_NAME'] | [0].keyId" -o tsv 2>/dev/null || true)
@@ -1127,7 +1149,7 @@ for env in "${ENVS[@]}"; do ensure_client_secret "$env"; done
 function Set-ClientSecret {
   param([string]$EnvName)
   $appName = "$Project-API$(Get-EnvSfx $EnvName)"
-  $appId = az ad app list --display-name $appName --query "[0].appId" -o tsv
+  $appId = az ad app list --display-name $appName --query "[?displayName=='$appName'].appId | [0]" -o tsv
   Write-Host "→ $appName"
   if (-not $appId) { Write-Warning "app not found; skipping secret"; return }
   $existing = ''
