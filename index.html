@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entra Provisioner — script generator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='9' fill='%23070a0f'/%3E%3Cpath d='M24 7 L39 15.5 V32.5 L24 41 L9 32.5 V15.5 Z' fill='none' stroke='%2358c4ff' stroke-width='2'/%3E%3Ccircle cx='24' cy='24' r='3.4' fill='%2358c4ff'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#070a0f; --panel:#0e131b; --panel-2:#0b0f16; --edge:#1a232f;
+    --hair:rgba(126,146,176,.14); --ink:#dfe6f0; --muted:#7d8a9c; --dim:#56616f;
+    --accent:#58c4ff; --accent-press:#8fd6ff; --amber:#ffc266; --green:#5fe3a1; --red:#ff7a7a;
+    --cm:#566476;
+    --input-bg:#070b11; --btn-bg:#0a0f17; --console-bg:#06090e;
+    --scroll:#1c2735; --scroll-hover:#2a3a4d; --placeholder:#3c4655;
+    --select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%237d8a9c' stroke-width='1.6'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    --bg-art:
+      radial-gradient(1100px 520px at 78% -8%, rgba(88,196,255,.10), transparent 60%),
+      radial-gradient(900px 460px at -6% 8%, rgba(95,227,161,.05), transparent 55%),
+      linear-gradient(rgba(126,146,176,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(126,146,176,.045) 1px, transparent 1px);
+    --noise-opacity:.035;
+    --font-mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code","Fira Code",Menlo,Consolas,monospace;
+    --font-sans:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    --r:9px;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f8; --panel:#ffffff; --panel-2:#f4f7fb; --edge:#d4dde9;
+    --hair:rgba(60,80,110,.16); --ink:#16202b; --muted:#56657a; --dim:#8593a4;
+    --accent:#0d7ec9; --accent-press:#0a64a3; --amber:#a86a10; --green:#1f9d63; --red:#d33c3c;
+    --cm:#8593a4;
+    --input-bg:#ffffff; --btn-bg:#eef3f8; --console-bg:#f8fafd;
+    --scroll:#c2cedb; --scroll-hover:#a7b6c7; --placeholder:#9aa7b5;
+    --select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2356657a' stroke-width='1.6'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    --bg-art:
+      radial-gradient(1100px 520px at 78% -8%, rgba(13,126,201,.10), transparent 60%),
+      radial-gradient(900px 460px at -6% 8%, rgba(31,157,99,.07), transparent 55%),
+      linear-gradient(rgba(60,80,110,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(60,80,110,.05) 1px, transparent 1px);
+    --noise-opacity:.02;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--font-mono); color:var(--ink); background:var(--bg);
+    font-size:13.5px; line-height:1.55; -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    background-image:var(--bg-art);
+    background-size:auto,auto,34px 34px,34px 34px;
+    background-position:center,center,center,center;
+    transition:background-color .2s, color .2s;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:var(--noise-opacity);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative; z-index:1; max-width:1340px; margin:0 auto; padding:26px 22px 60px}
+
+  /* ── top bar ── */
+  .topbar{display:flex; align-items:center; gap:16px; padding:4px 2px 22px; flex-wrap:wrap}
+  .mark{width:38px; height:38px; flex:0 0 auto; filter:drop-shadow(0 0 10px rgba(88,196,255,.35))}
+  .title{display:flex; flex-direction:column; gap:2px; margin-right:auto}
+  .title h1{margin:0; font-size:16px; letter-spacing:.32em; font-weight:600; text-transform:uppercase}
+  .title h1 b{color:var(--accent); font-weight:600}
+  .title p{margin:0; font-size:11px; color:var(--muted); letter-spacing:.04em}
+  .pill{display:inline-flex; align-items:center; gap:7px; font-size:10.5px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--green); border:1px solid var(--hair); padding:6px 11px; border-radius:999px;
+    background:rgba(95,227,161,.05)}
+  .pill .dot{width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  .topctl{display:flex; align-items:center; gap:10px; flex:0 0 auto}
+  .topctl select{width:auto; font-size:11.5px; padding:7px 30px 7px 11px; cursor:pointer;
+    background-color:var(--btn-bg); background-position:right 10px center}
+  .topctl select:hover{border-color:var(--accent)}
+  .themebtn{display:inline-flex; align-items:center; justify-content:center; width:35px; height:35px; flex:0 0 auto;
+    border:1px solid var(--edge); background:var(--btn-bg); color:var(--muted); border-radius:8px; cursor:pointer; transition:.15s}
+  .themebtn:hover{border-color:var(--accent); color:var(--ink)}
+  .themebtn svg{width:16px; height:16px}
+  .themebtn .moon{display:none} .themebtn .sun{display:block}
+  :root[data-theme="light"] .themebtn .moon{display:block}
+  :root[data-theme="light"] .themebtn .sun{display:none}
+
+  /* ── grid ── */
+  .grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.06fr); gap:26px; align-items:start}
+  @media (max-width:1040px){ .grid{grid-template-columns:1fr} }
+
+  .panel{background:linear-gradient(180deg, var(--panel), var(--panel-2)); border:1px solid var(--edge);
+    border-radius:14px; padding:8px 22px 24px; box-shadow:0 24px 60px -32px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.02)}
+
+  .section{padding:20px 0 4px; border-top:1px solid var(--hair); opacity:0; transform:translateY(8px); animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+  .section:first-of-type{border-top:none}
+  .section:nth-of-type(1){animation-delay:.02s}
+  .section:nth-of-type(2){animation-delay:.07s}
+  .section:nth-of-type(3){animation-delay:.12s}
+  .section:nth-of-type(4){animation-delay:.17s}
+  .section:nth-of-type(5){animation-delay:.22s}
+  .section:nth-of-type(6){animation-delay:.27s}
+  @keyframes rise{to{opacity:1; transform:none}}
+  .shead{display:flex; align-items:baseline; gap:11px; margin-bottom:14px}
+  .idx{font-size:10px; color:var(--accent); border:1px solid var(--hair); border-radius:6px; padding:2px 7px; letter-spacing:.1em; flex:0 0 auto}
+  .shead h2{margin:0; font-size:12.5px; letter-spacing:.18em; text-transform:uppercase; font-weight:600}
+  .shead .hint{margin-left:auto; font-size:11px; color:var(--dim)}
+
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  label.lbl{display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+  .req{color:var(--accent)}
+  input[type=text], select{
+    width:100%; font-family:var(--font-mono); font-size:13px; color:var(--ink);
+    background:var(--input-bg); border:1px solid var(--edge); border-radius:var(--r); padding:10px 12px; outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input[type=text]::placeholder{color:var(--placeholder)}
+  input[type=text]:focus, select:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,196,255,.13)}
+  input.bad{border-color:var(--red); box-shadow:0 0 0 3px rgba(255,122,122,.12)}
+  select{appearance:none; cursor:pointer;
+    background-image:var(--select-arrow);
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:32px}
+  .help{font-size:11px; color:var(--dim); margin-top:6px}
+  .err{font-size:11px; color:var(--red); margin-top:6px; min-height:0}
+
+  .chips{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
+  .chip{font-size:11.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--hair); color:var(--ink); background:rgba(88,196,255,.06)}
+  .chip.bad{border-color:rgba(255,122,122,.5); color:var(--red); background:rgba(255,122,122,.06)}
+  .preview{margin-top:10px; font-size:11.5px; color:var(--muted); border-left:2px solid var(--accent); padding:3px 0 3px 12px; word-break:break-all}
+  .preview b{color:var(--ink); font-weight:500}
+
+  /* switches */
+  .switch{display:flex; align-items:center; gap:12px; cursor:pointer; user-select:none}
+  .switch input{position:absolute; opacity:0; width:0; height:0}
+  .track{width:42px; height:23px; border-radius:999px; background:var(--btn-bg); border:1px solid var(--edge); position:relative; transition:.2s; flex:0 0 auto}
+  .track::after{content:""; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--dim); transition:.2s}
+  .switch input:checked + .track{background:rgba(88,196,255,.18); border-color:var(--accent)}
+  .switch input:checked + .track::after{transform:translateX(19px); background:var(--accent); box-shadow:0 0 10px rgba(88,196,255,.6)}
+  .switch .txt{font-size:12.5px}
+  .switch .sub{font-size:11px; color:var(--dim)}
+  .switch.disabled{opacity:.4; cursor:not-allowed}
+
+  .sub-block{margin-top:14px; padding:14px; border:1px dashed var(--hair); border-radius:10px; background:rgba(255,255,255,.012)}
+  .sub-block[hidden]{display:none}
+  .sub-title{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:10px}
+
+  /* role rows */
+  .role{display:grid; grid-template-columns:1.1fr 1fr 1.4fr auto; gap:8px; align-items:start; margin-bottom:9px}
+  .role.with-group{grid-template-columns:1fr 1fr 1.3fr .9fr auto}
+  .role .gl{display:none}
+  .roles.show-group .role .gl{display:block}
+  .role .mini{font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; display:block}
+  .role input{padding:8px 10px; font-size:12.5px}
+  .xbtn{align-self:end; height:35px; width:35px; border:1px solid var(--edge); background:var(--btn-bg); color:var(--muted); border-radius:8px; cursor:pointer; font-size:15px; line-height:1; transition:.15s}
+  .xbtn:hover{border-color:var(--red); color:var(--red)}
+  @media (max-width:560px){
+    .role, .role.with-group{grid-template-columns:1fr 1fr; }
+    .role .xbtn{grid-column:1 / -1; width:100%}
+  }
+  .addbtn{margin-top:4px; width:100%; border:1px dashed var(--hair); background:transparent; color:var(--accent);
+    padding:9px; border-radius:9px; cursor:pointer; font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; transition:.15s}
+  .addbtn:hover{border-color:var(--accent); background:rgba(88,196,255,.06)}
+
+  /* graph permissions */
+  .applyto{display:flex; gap:20px; flex-wrap:wrap}
+  .chk{display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); cursor:pointer}
+  .chk input{width:15px; height:15px; accent-color:var(--accent); cursor:pointer}
+  .chk.disabled{opacity:.4; cursor:not-allowed}
+  .chk.disabled input{cursor:not-allowed}
+  .gperm{display:grid; grid-template-columns:1.7fr .9fr auto; gap:8px; margin-bottom:8px}
+  .gperm input, .gperm select{padding:8px 10px; font-size:12.5px}
+  @media (max-width:560px){ .gperm{grid-template-columns:1fr auto} }
+  .quickadd{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:6px}
+  .qa-label{font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:0 2px 0 6px}
+  .qa-label:first-child{margin-left:0}
+  .qa{font-family:var(--font-mono); font-size:11px; color:var(--muted); border:1px solid var(--edge); background:var(--btn-bg); padding:5px 9px; border-radius:7px; cursor:pointer; transition:.15s}
+  .qa:hover{border-color:var(--accent); color:var(--ink)}
+  .qa-custom{color:var(--accent); border-style:dashed}
+  .warnbox.inline{margin-top:12px}
+
+  .toolbar{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap}
+  .ghost{border:1px solid var(--edge); background:var(--btn-bg); color:var(--muted); padding:8px 14px; border-radius:8px; cursor:pointer;
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; transition:.15s}
+  .ghost:hover{border-color:var(--accent); color:var(--ink)}
+
+  /* ── console ── */
+  .console{position:sticky; top:18px; border:1px solid var(--edge); border-radius:14px; overflow:hidden;
+    background:var(--console-bg); box-shadow:0 30px 70px -34px rgba(0,0,0,.85);
+    opacity:0; transform:translateY(8px); animation:rise .5s .14s cubic-bezier(.2,.7,.2,1) forwards}
+  @media (max-width:1040px){ .console{position:relative; top:0} }
+  .chead{display:flex; align-items:center; gap:12px; padding:11px 14px; border-bottom:1px solid var(--hair); background:rgba(255,255,255,.015); flex-wrap:wrap}
+  .path{font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; min-width:0}
+  .path .lights{display:flex; gap:5px}
+  .path .lights i{width:9px; height:9px; border-radius:50%; display:block}
+  .path .lights i:nth-child(1){background:#ff5f57} .path .lights i:nth-child(2){background:#febc2e} .path .lights i:nth-child(3){background:#28c840}
+  .path .fname{color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .cur{display:inline-block; width:7px; height:14px; background:var(--accent); margin-left:2px; vertical-align:-2px; animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .seg{display:flex; border:1px solid var(--edge); border-radius:8px; overflow:hidden; margin-left:auto}
+  .seg button{font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:7px 13px; background:transparent; color:var(--muted); border:none; cursor:pointer; transition:.15s}
+  .seg button.on{background:rgba(88,196,255,.16); color:var(--accent)}
+  .seg button + button{border-left:1px solid var(--edge)}
+  .cact{display:flex; gap:7px}
+  .iconbtn{display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px; letter-spacing:.06em;
+    border:1px solid var(--edge); background:var(--btn-bg); color:var(--muted); padding:7px 11px; border-radius:8px; cursor:pointer; transition:.15s}
+  .iconbtn:hover{border-color:var(--accent); color:var(--ink)}
+  .iconbtn.ok{border-color:var(--green); color:var(--green)}
+  .iconbtn svg{width:13px; height:13px}
+  .iconbtn[disabled]{opacity:.4; cursor:not-allowed}
+
+  .cbody{margin:0; padding:0; max-height:62vh; overflow:auto; background:var(--console-bg)}
+  .cbody pre{margin:0; padding:16px 18px}
+  .cbody code{font-family:var(--font-mono); font-size:12px; line-height:1.62; white-space:pre; color:var(--ink); display:block}
+  .cbody .cm{color:var(--cm)}
+  .cbody::-webkit-scrollbar{width:11px; height:11px}
+  .cbody::-webkit-scrollbar-thumb{background:var(--scroll); border-radius:8px; border:3px solid var(--console-bg)}
+  .cbody::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover)}
+  .placeholder{padding:34px 20px; color:var(--dim); font-size:12.5px}
+  .placeholder b{color:var(--amber); font-weight:500}
+  .placeholder ul{margin:12px 0 0; padding-left:18px}
+  .placeholder li{margin:4px 0}
+  .cfoot{display:flex; align-items:center; gap:14px; padding:9px 14px; border-top:1px solid var(--hair); font-size:10.5px; color:var(--dim); flex-wrap:wrap}
+  .cfoot .warn{color:var(--amber)}
+  .cfoot .meta{margin-left:auto; display:flex; gap:14px}
+  .cfoot .meta span b{color:var(--muted); font-weight:500}
+
+  .warnbox{margin-top:12px; font-size:11.5px; color:var(--amber); border:1px solid rgba(255,194,102,.25); background:rgba(255,194,102,.05); border-radius:9px; padding:10px 12px}
+  .warnbox[hidden]{display:none}
+  .warnbox ul{margin:6px 0 0; padding-left:18px}
+
+  .footnote{margin-top:26px; font-size:11px; color:var(--dim); text-align:center; letter-spacing:.03em}
+  .footnote a{color:var(--muted)}
+</style>
+<script>
+  /* Set the theme before first paint to avoid a flash. */
+  (function(){
+    try {
+      var saved = localStorage.getItem('entra-prov-theme');
+      var light = saved ? saved === 'light'
+                        : window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      if (light) document.documentElement.setAttribute('data-theme', 'light');
+    } catch(e){}
+  })();
+</script>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <svg class="mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M24 3 L42 13 V35 L24 45 L6 35 V13 Z" stroke="#58c4ff" stroke-width="1.6" fill="rgba(88,196,255,.06)"/>
+      <path d="M24 14 L33 19 V29 L24 34 L15 29 V19 Z" stroke="#5fe3a1" stroke-width="1.4" fill="none"/>
+      <circle cx="24" cy="24" r="3.2" fill="#58c4ff"/>
+    </svg>
+    <div class="title">
+      <h1>Entra&nbsp;<b>Provisioner</b></h1>
+      <p data-i18n-html="hdr.subtitle">Generate an idempotent <span style="color:var(--ink)">az&nbsp;CLI</span> provisioning script for Entra ID app registrations</p>
+    </div>
+    <span class="pill"><span class="dot"></span><span data-i18n="hdr.pill">client-side · nothing calls Azure</span></span>
+    <div class="topctl">
+      <select id="lang" aria-label="Language">
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+      </select>
+      <button class="themebtn" id="theme-toggle" type="button" title="Toggle light / dark theme" aria-label="Toggle light / dark theme">
+        <svg class="sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M13 3l-1.4 1.4M4.4 11.6 3 13"/></svg>
+        <svg class="moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- ───────────── FORM ───────────── -->
+    <section class="panel" aria-label="Configuration">
+
+      <div class="section">
+        <div class="shead"><span class="idx">01</span><h2 data-i18n="sec.project.title">Project</h2><span class="hint" data-i18n="sec.project.hint">name &rarr; slug</span></div>
+        <div class="field">
+          <label class="lbl" for="project" data-i18n-html="field.project.label">Project name <span class="req">*</span></label>
+          <input type="text" id="project" placeholder="e.g. AegisIQ" data-i18n-ph="field.project.ph" autocomplete="off" spellcheck="false">
+          <div class="err" id="project-err"></div>
+          <div class="preview" id="proj-preview" data-i18n="preview.empty">Enter a project name to derive the slug.</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">02</span><h2 data-i18n="sec.envs.title">Environments</h2><span class="hint" data-i18n="sec.envs.hint">space / comma separated</span></div>
+        <div class="field">
+          <label class="lbl" for="envs" data-i18n-html="field.envs.label">Environments <span class="req">*</span></label>
+          <input type="text" id="envs" placeholder="test uat prod" autocomplete="off" spellcheck="false" value="test uat">
+          <div class="help" data-i18n-html="field.envs.help">Lowercase letters, digits and <code>-</code>; must start with a letter.</div>
+          <div class="chips" id="env-chips"></div>
+          <div class="err" id="envs-err"></div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="primaryEnv" data-i18n="field.primaryEnv.label">Primary environment</label>
+          <select id="primaryEnv"></select>
+          <div class="help" data-i18n-html="field.primaryEnv.help">Its app names, audience URI and group names omit the <code>-&lt;env&gt;</code> suffix; the others keep it.</div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="audience" data-i18n="field.audience.label">Sign-in audience</label>
+          <select id="audience">
+            <option value="AzureADMyOrg" selected data-i18n="audience.myorg">AzureADMyOrg — single tenant</option>
+            <option value="AzureADMultipleOrgs" data-i18n="audience.multi">AzureADMultipleOrgs — any work/school tenant</option>
+            <option value="AzureADandPersonalMicrosoftAccount" data-i18n="audience.personal">AzureADandPersonalMicrosoftAccount — + personal MSA</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">03</span><h2 data-i18n="sec.spa.title">SPA client</h2><span class="hint" data-i18n="sec.spa.hint">browser PKCE app</span></div>
+        <label class="switch" for="hasSpa">
+          <input type="checkbox" id="hasSpa">
+          <span class="track"></span>
+          <span><span class="txt" data-i18n="sec.spa.switch">This project has a browser SPA client</span><br><span class="sub" data-i18n-html="sec.spa.sub">adds the <code>access_as_user</code> scope, a SPA app, the SPA&rarr;API grant &amp; admin consent</span></span>
+        </label>
+        <div class="sub-block" id="spa-block" hidden>
+          <div class="sub-title" data-i18n="sec.spa.redirects">Redirect URI(s) per environment — comma separated</div>
+          <div id="redirects"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">04</span><h2 data-i18n="sec.roles.title">App roles</h2><span class="hint" data-i18n="sec.roles.hint">at least one</span></div>
+        <div class="roles" id="roles"></div>
+        <button class="addbtn" id="add-role" type="button" data-i18n="btn.addRole">+ add role</button>
+        <div class="err" id="roles-err"></div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">05</span><h2 data-i18n="sec.groups.title">Security groups</h2><span class="hint" data-i18n="sec.groups.hint">one group per role</span></div>
+        <label class="switch" for="doGroups">
+          <input type="checkbox" id="doGroups">
+          <span class="track"></span>
+          <span><span class="txt" data-i18n="sec.groups.switch">Create a security group per role and assign it the role</span><br><span class="sub" data-i18n-html="sec.groups.sub">group name <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edit labels in the role rows above</span></span>
+        </label>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">06</span><h2 data-i18n="sec.graph.title">Microsoft Graph permissions</h2><span class="hint" data-i18n-html="sec.graph.hint">optional &middot; az ad app permission</span></div>
+        <label class="switch" for="graphOn">
+          <input type="checkbox" id="graphOn">
+          <span class="track"></span>
+          <span><span class="txt" data-i18n="sec.graph.switch">Grant Microsoft Graph permissions to the app registration(s)</span><br><span class="sub" data-i18n-html="sec.graph.sub">e.g. delegated <code>User.Read</code> — resolved by name at run time &amp; admin-consented</span></span>
+        </label>
+        <div class="sub-block" id="graph-block" hidden>
+          <div class="sub-title" data-i18n="sec.graph.applyto">Apply to</div>
+          <div class="applyto">
+            <label class="chk"><input type="checkbox" id="graphApi" checked> <span data-i18n="sec.graph.apiApp">API app</span></label>
+            <label class="chk" id="graphSpaWrap"><input type="checkbox" id="graphSpa"> <span data-i18n="sec.graph.spaApp">SPA app</span></label>
+          </div>
+          <div class="sub-title" style="margin-top:15px" data-i18n-html="sec.graph.permsTitle">Permissions <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— delegated <code>=Scope</code>, application <code>=Role</code></span></div>
+          <div id="graph-perms"></div>
+          <div class="quickadd">
+            <span class="qa-label" data-i18n="sec.graph.delegated">delegated</span>
+            <button type="button" class="qa" data-name="User.Read" data-type="Scope">User.Read</button>
+            <button type="button" class="qa" data-name="User.ReadBasic.All" data-type="Scope">User.ReadBasic.All</button>
+            <button type="button" class="qa" data-name="email" data-type="Scope">email</button>
+            <button type="button" class="qa" data-name="openid" data-type="Scope">openid</button>
+            <button type="button" class="qa" data-name="profile" data-type="Scope">profile</button>
+            <button type="button" class="qa" data-name="offline_access" data-type="Scope">offline_access</button>
+            <button type="button" class="qa" data-name="Directory.Read.All" data-type="Scope">Directory.Read.All</button>
+            <span class="qa-label" data-i18n="sec.graph.application">application</span>
+            <button type="button" class="qa" data-name="User.Read.All" data-type="Role">User.Read.All</button>
+            <button type="button" class="qa" data-name="Group.Read.All" data-type="Role">Group.Read.All</button>
+            <button type="button" class="qa" data-name="Directory.Read.All" data-type="Role">Directory.Read.All</button>
+            <button type="button" class="qa qa-custom" data-custom="1" data-i18n="sec.graph.custom">+ custom</button>
+          </div>
+          <div class="warnbox inline" id="graph-app-warn" hidden></div>
+          <div class="err" id="graph-err"></div>
+        </div>
+        <div class="sub-block" id="consent-wrap" hidden style="margin-top:14px">
+          <label class="switch" id="consent-switch" for="doConsent">
+            <input type="checkbox" id="doConsent" checked>
+            <span class="track"></span>
+            <span><span class="txt" data-i18n="sec.consent.switch">Grant admin consent</span><br><span class="sub" data-i18n-html="sec.consent.sub">applies to the SPA <code>access_as_user</code> scope and any Graph permissions; off &rarr; <code>--no-consent</code> default</span></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">07</span><h2 data-i18n="sec.secret.title">Client secret</h2><span class="hint" data-i18n-html="sec.secret.hint">optional &middot; az ad app credential</span></div>
+        <label class="switch" for="secretOn">
+          <input type="checkbox" id="secretOn">
+          <span class="track"></span>
+          <span><span class="txt" data-i18n="sec.secret.switch">Generate a client secret for the API app</span><br><span class="sub" data-i18n="sec.secret.sub">needed for app-only Graph access / on-behalf-of — printed once at run time; the SPA (public client) never gets one</span></span>
+        </label>
+        <div class="sub-block" id="secret-block" hidden>
+          <div class="field">
+            <label class="lbl" for="secretName" data-i18n="field.secretName.label">Secret display name</label>
+            <input type="text" id="secretName" value="provisioner-generated" autocomplete="off" spellcheck="false">
+            <div class="err" id="secret-err"></div>
+          </div>
+          <div class="field">
+            <label class="lbl" for="secretYears" data-i18n="field.secretYears.label">Validity</label>
+            <select id="secretYears">
+              <option value="1" selected data-i18n="secretYears.1">1 year</option>
+              <option value="2" data-i18n="secretYears.2">2 years</option>
+            </select>
+          </div>
+          <div class="warnbox inline" data-i18n-html="sec.secret.warn">The secret is printed <b>once</b> at run time — store it immediately (e.g. Azure Key Vault) and never commit it. Re-runs skip creation if a secret with this name already exists.</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="shead"><span class="idx">08</span><h2 data-i18n="sec.output.title">Output</h2><span class="hint" data-i18n-html="sec.output.hint">review &middot; az login &middot; run</span></div>
+        <div class="help" data-i18n-html="sec.output.help">Pick <b>Bash</b> or <b>PowerShell</b> in the console, then <b>Copy</b> or <b>Download</b>. The script is idempotent and never runs here — review it, sign in with <code>az login</code>, then execute it locally or in Azure Cloud Shell.</div>
+        <div class="toolbar">
+          <button class="ghost" id="load-example" type="button" data-i18n="btn.loadExample">load example</button>
+          <button class="ghost" id="reset" type="button" data-i18n="btn.reset">reset</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───────────── CONSOLE ───────────── -->
+    <section class="console" aria-label="Generated script">
+      <div class="chead">
+        <div class="path">
+          <span class="lights"><i></i><i></i><i></i></span>
+          <span class="fname" id="fname">entra-provision.sh</span><span class="cur"></span>
+        </div>
+        <div class="seg" role="tablist">
+          <button id="tab-bash" class="on" type="button" role="tab">Bash</button>
+          <button id="tab-ps" type="button" role="tab">PowerShell</button>
+        </div>
+        <div class="cact">
+          <button class="iconbtn" id="copy" type="button" title="Copy to clipboard" data-i18n-title="console.copyTitle">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1A1 1 0 0 1 1.5 9.5v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1"/></svg>
+            <span id="copy-label" data-i18n="console.copy">Copy</span>
+          </button>
+          <button class="iconbtn" id="download" type="button" title="Download script" data-i18n-title="console.downloadTitle">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5v8m0 0L5 6.5m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"/></svg>
+            <span data-i18n="console.save">Save</span>
+          </button>
+        </div>
+      </div>
+      <div class="cbody" id="cbody">
+        <pre><code id="code"></code></pre>
+      </div>
+      <div class="cfoot">
+        <span class="warn" data-i18n="console.reviewWarn">⚠ review before running</span>
+        <span class="meta">
+          <span data-i18n-html="console.lines"><b id="m-lines">0</b> lines</span>
+          <span data-i18n-html="console.bytes"><b id="m-bytes">0</b> bytes</span>
+        </span>
+      </div>
+    </section>
+  </main>
+
+  <div class="warnbox" id="warnbox" hidden></div>
+
+  <p class="footnote" data-i18n-html="footnote">Self-contained · works offline · the generated script requires <code>az</code> CLI 2.50+ (Bash also needs <code>jq</code> + <code>uuidgen</code>; PowerShell needs pwsh 7+) and a sign-in with <b>Cloud Application Administrator</b> (+ <b>Groups Administrator</b> for groups).</p>
+</div>
+
+<!-- ════════════ VERBATIM BASH ENGINE (lifted from entra-provision-gen.sh) ════════════ -->
+<script type="text/plain" id="bash-engine">
+# ─── ENGINE (generated; edit with care) ──────────────────────────────
+ONLY=""
+TENANT_OVERRIDE=""
+
+usage() { sed -n '2,/^set -/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1; }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --only)       ONLY="$2"; shift 2 ;;
+    --tenant)     TENANT_OVERRIDE="$2"; shift 2 ;;
+    --no-groups)  DO_GROUPS=0; shift ;;
+    --no-consent) DO_CONSENT=0; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    *) echo "Unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
+
+for tool in az jq uuidgen; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "ERROR: $tool not installed" >&2; exit 1; }
+done
+
+if [[ -n "$TENANT_OVERRIDE" ]]; then
+  az account set --subscription "$(az account list --query "[?tenantId=='$TENANT_OVERRIDE'].id|[0]" -o tsv)"
+fi
+TENANT_ID=$(az account show --query tenantId -o tsv)
+ACCOUNT_NAME=$(az account show --query user.name -o tsv)
+
+if [[ -n "$ONLY" ]]; then ENVS=("$ONLY"); fi
+
+echo "════════════════════════════════════════════════════════════"
+echo "  Project       : $PROJECT"
+echo "  Tenant        : $TENANT_ID"
+echo "  Signed in as  : $ACCOUNT_NAME"
+echo "  Environments  : ${ENVS[*]}"
+echo "  SPA client    : $([[ $HAS_SPA -eq 1 ]] && echo yes || echo no)"
+echo "  Groups        : $([[ $DO_GROUPS -eq 1 ]] && echo yes || echo no)"
+echo "════════════════════════════════════════════════════════════"
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+# Lowercase + strip to a valid mail nickname.
+sanitize_nick() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' .' '--' | sed 's/[^a-z0-9-]//g'; }
+
+# The primary environment (PRIMARY_ENV) drops the -<env> suffix; all other envs keep it.
+env_sfx() { if [[ -n "$PRIMARY_ENV" && "$1" == "$PRIMARY_ENV" ]]; then printf ''; else printf -- '-%s' "$1"; fi; }
+
+# Idempotently assign a principal (group or user object id) to an app role.
+assign_principal_role() {  # api_app_id api_sp_id role_value principal_id
+  local app_id="$1" sp_id="$2" role="$3" pid="$4" role_id existing body
+  role_id=$(az ad sp show --id "$app_id" --query "appRoles[?value=='$role'].id|[0]" -o tsv)
+  if [[ -z "$role_id" || "$role_id" == null ]]; then
+    echo "    WARN: role '$role' not found on service principal; skipping" >&2
+    return 0
+  fi
+  existing=$(az rest --method GET \
+    --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$sp_id/appRoleAssignedTo" \
+    --query "value[?principalId=='$pid' && appRoleId=='$role_id']" -o tsv 2>/dev/null || true)
+  if [[ -n "$existing" ]]; then echo "    already assigned"; return 0; fi
+  body=$(jq -nc --arg p "$pid" --arg r "$sp_id" --arg a "$role_id" \
+    '{principalId:$p, resourceId:$r, appRoleId:$a}')
+  az rest --method POST \
+    --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$sp_id/appRoleAssignedTo" \
+    --headers "Content-Type=application/json" --body "$body" >/dev/null
+  echo "    assigned"
+}
+
+provision_env() {
+  local env="$1"
+  local api_name="${PROJECT}-API$(env_sfx "$env")"
+  local spa_name="${PROJECT}-SPA$(env_sfx "$env")"
+  local audience="${AUDIENCES[$env]}"
+
+  echo
+  echo "╔══════════════════════════════════════════════════════════╗"
+  echo "║  $env"
+  echo "╚══════════════════════════════════════════════════════════╝"
+
+  # 1. API app registration ----------------------------------------------------
+  echo "→ API app registration"
+  local api_app_id api_obj_id
+  api_app_id=$(az ad app list --display-name "$api_name" --query "[0].appId" -o tsv)
+  if [[ -z "$api_app_id" ]]; then
+    api_app_id=$(az ad app create --display-name "$api_name" \
+      --sign-in-audience "$SIGN_IN_AUDIENCE" --query appId -o tsv)
+    echo "  created   $api_name ($api_app_id)"
+  else
+    echo "  existing  $api_name ($api_app_id)"
+  fi
+  api_obj_id=$(az ad app show --id "$api_app_id" --query id -o tsv)
+
+  # Preserve existing scope/role IDs so consents & assignments survive re-runs.
+  local existing
+  existing=$(az rest --method GET \
+    --uri "https://graph.microsoft.com/v1.0/applications/$api_obj_id" 2>/dev/null || echo '{}')
+
+  read_existing_id() {  # kind(scope|role) value
+    local kind="$1" value="$2" id
+    if [[ "$kind" == scope ]]; then
+      id=$(echo "$existing" | jq -r ".api.oauth2PermissionScopes[]? | select(.value==\"$value\") | .id" 2>/dev/null)
+    else
+      id=$(echo "$existing" | jq -r ".appRoles[]? | select(.value==\"$value\") | .id" 2>/dev/null)
+    fi
+    if [[ -n "$id" && "$id" != null ]]; then echo "$id"; else uuidgen; fi
+  }
+
+  # Build the appRoles array (UUIDs preserved per role value).
+  local roles_json='[]' i rid
+  for i in "${!ROLE_VALUES[@]}"; do
+    rid=$(read_existing_id role "${ROLE_VALUES[$i]}")
+    roles_json=$(jq -c \
+      --arg id "$rid" --arg val "${ROLE_VALUES[$i]}" \
+      --arg disp "${ROLE_DISPLAYS[$i]}" --arg desc "${ROLE_DESCS[$i]}" \
+      '. + [{id:$id, allowedMemberTypes:["User"], description:$desc, displayName:$disp, isEnabled:true, value:$val}]' \
+      <<<"$roles_json")
+  done
+
+  # api block — add the access_as_user delegated scope only when a SPA exists.
+  local api_block
+  if [[ $HAS_SPA -eq 1 ]]; then
+    local scope_id
+    scope_id=$(read_existing_id scope access_as_user)
+    api_block=$(jq -nc --arg sid "$scope_id" --arg proj "$PROJECT" '{
+      requestedAccessTokenVersion: 2,
+      oauth2PermissionScopes: [{
+        id: $sid,
+        adminConsentDescription: ("Allows " + $proj + " to call its API on behalf of the signed-in user."),
+        adminConsentDisplayName: ("Access " + $proj + " as the signed-in user"),
+        isEnabled: true, type: "User",
+        userConsentDescription: ("Allows " + $proj + " to call its API on your behalf."),
+        userConsentDisplayName: ("Access " + $proj),
+        value: "access_as_user"
+      }]
+    }')
+  else
+    api_block=$(jq -nc '{requestedAccessTokenVersion: 2}')
+  fi
+
+  jq -nc --arg aud "$audience" --argjson api "$api_block" --argjson roles "$roles_json" \
+    '{identifierUris: [$aud], api: $api, appRoles: $roles}' >"$WORK/api-patch.json"
+  az rest --method PATCH \
+    --uri "https://graph.microsoft.com/v1.0/applications/$api_obj_id" \
+    --headers "Content-Type=application/json" --body "@$WORK/api-patch.json" >/dev/null
+  echo "  audience  $audience  (v2 tokens)"
+  for i in "${!ROLE_VALUES[@]}"; do echo "  role      ${ROLE_VALUES[$i]}"; done
+  [[ $HAS_SPA -eq 1 ]] && echo "  scope     access_as_user"
+
+  # 2. API service principal ---------------------------------------------------
+  local api_sp_id
+  api_sp_id=$(az ad sp show --id "$api_app_id" --query id -o tsv 2>/dev/null || true)
+  if [[ -z "$api_sp_id" ]]; then
+    api_sp_id=$(az ad sp create --id "$api_app_id" --query id -o tsv)
+    echo "  created   API service principal $api_sp_id"
+  else
+    echo "  existing  API service principal $api_sp_id"
+  fi
+
+  # 3. SPA app (optional) ------------------------------------------------------
+  local spa_app_id=""
+  if [[ $HAS_SPA -eq 1 ]]; then
+    echo "→ SPA app registration"
+    spa_app_id=$(az ad app list --display-name "$spa_name" --query "[0].appId" -o tsv)
+    if [[ -z "$spa_app_id" ]]; then
+      spa_app_id=$(az ad app create --display-name "$spa_name" \
+        --sign-in-audience "$SIGN_IN_AUDIENCE" --query appId -o tsv)
+      echo "  created   $spa_name ($spa_app_id)"
+    else
+      echo "  existing  $spa_name ($spa_app_id)"
+    fi
+    local spa_obj_id existing_spa merged u
+    spa_obj_id=$(az ad app show --id "$spa_app_id" --query id -o tsv)
+    existing_spa=$(az rest --method GET \
+      --uri "https://graph.microsoft.com/v1.0/applications/$spa_obj_id" 2>/dev/null || echo '{}')
+    merged=$(echo "$existing_spa" | jq -c '.spa.redirectUris // []')
+    for u in ${REDIRECTS[$env]}; do
+      merged=$(jq -c --arg u "$u" 'if index($u) then . else . + [$u] end' <<<"$merged")
+    done
+    jq -nc --argjson uris "$merged" '{
+      spa: { redirectUris: $uris },
+      web: { redirectUris: [], implicitGrantSettings: { enableAccessTokenIssuance: false, enableIdTokenIssuance: false } },
+      publicClient: { redirectUris: [] }
+    }' >"$WORK/spa-patch.json"
+    az rest --method PATCH \
+      --uri "https://graph.microsoft.com/v1.0/applications/$spa_obj_id" \
+      --headers "Content-Type=application/json" --body "@$WORK/spa-patch.json" >/dev/null
+    echo "  redirects ${REDIRECTS[$env]}"
+
+    local spa_sp_id
+    spa_sp_id=$(az ad sp show --id "$spa_app_id" --query id -o tsv 2>/dev/null || true)
+    if [[ -z "$spa_sp_id" ]]; then
+      spa_sp_id=$(az ad sp create --id "$spa_app_id" --query id -o tsv)
+      echo "  created   SPA service principal $spa_sp_id"
+    else
+      echo "  existing  SPA service principal $spa_sp_id"
+    fi
+
+    # Delegated permission SPA → API (access_as_user / Scope).
+    local live_scope_id
+    live_scope_id=$(az ad app show --id "$api_app_id" \
+      --query "api.oauth2PermissionScopes[?value=='access_as_user'].id|[0]" -o tsv)
+    az ad app permission add --id "$spa_app_id" --api "$api_app_id" \
+      --api-permissions "${live_scope_id}=Scope" 2>/dev/null || true
+    echo "  granted   access_as_user (delegated)"
+
+    if [[ $DO_CONSENT -eq 1 ]]; then
+      az ad app permission admin-consent --id "$spa_app_id"
+      echo "  consent   granted for $spa_name"
+    else
+      echo "  consent   skipped (--no-consent); run: az ad app permission admin-consent --id $spa_app_id"
+    fi
+  fi
+
+  # 4. Groups + role assignment (optional) -------------------------------------
+  if [[ $DO_GROUPS -eq 1 ]]; then
+    echo "→ Groups + role assignments"
+    local label gname gnick gid
+    for i in "${!ROLE_VALUES[@]}"; do
+      label="${ROLE_GROUP_LABELS[$i]}"
+      gname="${PROJECT}$(env_sfx "$env")-${label}"
+      gnick=$(sanitize_nick "${SLUG}$(env_sfx "$env")-${label}")
+      gid=$(az ad group show --group "$gname" --query id -o tsv 2>/dev/null || true)
+      if [[ -z "$gid" ]]; then
+        gid=$(az ad group create --display-name "$gname" --mail-nickname "$gnick" --query id -o tsv)
+        echo "  created   group $gname"
+      else
+        echo "  existing  group $gname"
+      fi
+      echo "  assign    $gname → ${ROLE_VALUES[$i]}"
+      assign_principal_role "$api_app_id" "$api_sp_id" "${ROLE_VALUES[$i]}" "$gid"
+    done
+  fi
+
+  # 5. Values to capture -------------------------------------------------------
+  cat <<CAP
+
+  ────────────────────────────────────────────────────────────────────
+  $env — capture these values:
+    API (appsettings.${env}.json or container env):
+      AzureAd__Instance  = https://login.microsoftonline.com/
+      AzureAd__TenantId  = $TENANT_ID
+      AzureAd__ClientId  = $api_app_id
+      AzureAd__Audience  = $audience
+CAP
+  if [[ $HAS_SPA -eq 1 ]]; then
+    cat <<CAP
+    SPA (MSAL config):
+      clientId    = $spa_app_id
+      authority   = https://login.microsoftonline.com/$TENANT_ID
+      apiScopes   = ['$audience/access_as_user']
+CAP
+  fi
+}
+
+for env in "${ENVS[@]}"; do
+  provision_env "$env"
+done
+
+echo
+echo "✓ Done. Paste the captured values into appsettings or container env vars."
+</script>
+
+<!-- ════════════ POWERSHELL ENGINE (az CLI port) ════════════ -->
+<script type="text/plain" id="ps-engine">
+# ─── ENGINE (generated; edit with care) ──────────────────────────────
+function New-JsonBodyFile {
+  param([Parameter(Mandatory)]$Object)
+  $tmp = New-TemporaryFile
+  ($Object | ConvertTo-Json -Depth 30) | Set-Content -LiteralPath $tmp.FullName -Encoding utf8
+  return $tmp.FullName
+}
+
+# Lowercase + strip to a valid mail nickname.
+function Get-MailNickname {
+  param([string]$Value)
+  ($Value.ToLower() -replace '[ .]', '-') -replace '[^a-z0-9-]', ''
+}
+
+# The primary environment ($PrimaryEnv) drops the -<env> suffix; all other envs keep it.
+function Get-EnvSfx([string]$EnvName) { if ($PrimaryEnv -and $EnvName -eq $PrimaryEnv) { '' } else { "-$EnvName" } }
+
+# Return an existing scope/role id by value, or a fresh GUID (preserves UUIDs on re-run).
+function Read-ExistingId {
+  param($Existing, [string]$Kind, [string]$Value)
+  $id = $null
+  if ($Kind -eq 'scope') {
+    $id = $Existing.api.oauth2PermissionScopes |
+      Where-Object { $_.value -eq $Value } |
+      Select-Object -First 1 -ExpandProperty id -ErrorAction SilentlyContinue
+  } else {
+    $id = $Existing.appRoles |
+      Where-Object { $_.value -eq $Value } |
+      Select-Object -First 1 -ExpandProperty id -ErrorAction SilentlyContinue
+  }
+  if ($id) { $id } else { (New-Guid).Guid }
+}
+
+# Idempotently assign a principal (group or user object id) to an app role.
+function Assign-PrincipalRole {
+  param([string]$AppId, [string]$SpId, [string]$Role, [string]$PrincipalId)
+  $roleId = az ad sp show --id $AppId --query "appRoles[?value=='$Role'].id | [0]" -o tsv
+  if (-not $roleId -or $roleId -eq 'null') {
+    Write-Warning "role '$Role' not found on service principal; skipping"
+    return
+  }
+  $existing = ''
+  try {
+    $existing = az rest --method GET `
+      --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SpId/appRoleAssignedTo" `
+      --query "value[?principalId=='$PrincipalId' && appRoleId=='$roleId']" -o tsv 2>$null
+  } catch { $existing = '' }
+  if ($existing) { Write-Host "    already assigned"; return }
+  $bodyFile = New-JsonBodyFile ([ordered]@{ principalId = $PrincipalId; resourceId = $SpId; appRoleId = $roleId })
+  az rest --method POST `
+    --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SpId/appRoleAssignedTo" `
+    --headers "Content-Type=application/json" --body "@$bodyFile" | Out-Null
+  Remove-Item -LiteralPath $bodyFile -ErrorAction SilentlyContinue
+  Write-Host "    assigned"
+}
+
+function Invoke-ProvisionEnv {
+  param([string]$EnvName)
+  $apiName  = "$Project-API$(Get-EnvSfx $EnvName)"
+  $spaName  = "$Project-SPA$(Get-EnvSfx $EnvName)"
+  $audience = $Audiences[$EnvName]
+
+  Write-Host ""
+  Write-Host "╔══════════════════════════════════════════════════════════╗"
+  Write-Host "║  $EnvName"
+  Write-Host "╚══════════════════════════════════════════════════════════╝"
+
+  # 1. API app registration ----------------------------------------------------
+  Write-Host "→ API app registration"
+  $apiAppId = az ad app list --display-name $apiName --query "[0].appId" -o tsv
+  if (-not $apiAppId) {
+    $apiAppId = az ad app create --display-name $apiName `
+      --sign-in-audience $SignInAudience --query appId -o tsv
+    Write-Host "  created   $apiName ($apiAppId)"
+  } else {
+    Write-Host "  existing  $apiName ($apiAppId)"
+  }
+  $apiObjId = az ad app show --id $apiAppId --query id -o tsv
+
+  # Preserve existing scope/role IDs so consents & assignments survive re-runs.
+  $existing = $null
+  try {
+    $existing = az rest --method GET `
+      --uri "https://graph.microsoft.com/v1.0/applications/$apiObjId" 2>$null | ConvertFrom-Json
+  } catch { $existing = $null }
+
+  # Build the appRoles array (UUIDs preserved per role value).
+  $rolesJson = @()
+  foreach ($r in $Roles) {
+    $rid = Read-ExistingId $existing 'role' $r.Value
+    $rolesJson += [ordered]@{
+      id                 = $rid
+      allowedMemberTypes = @('User')
+      description        = $r.Desc
+      displayName        = $r.Display
+      isEnabled          = $true
+      value              = $r.Value
+    }
+  }
+
+  # api block — add the access_as_user delegated scope only when a SPA exists.
+  if ($HasSpa) {
+    $scopeId = Read-ExistingId $existing 'scope' 'access_as_user'
+    $apiBlock = [ordered]@{
+      requestedAccessTokenVersion = 2
+      oauth2PermissionScopes = @(
+        [ordered]@{
+          id                      = $scopeId
+          adminConsentDescription = "Allows $Project to call its API on behalf of the signed-in user."
+          adminConsentDisplayName = "Access $Project as the signed-in user"
+          isEnabled               = $true
+          type                    = 'User'
+          userConsentDescription  = "Allows $Project to call its API on your behalf."
+          userConsentDisplayName  = "Access $Project"
+          value                   = 'access_as_user'
+        }
+      )
+    }
+  } else {
+    $apiBlock = [ordered]@{ requestedAccessTokenVersion = 2 }
+  }
+
+  $patchFile = New-JsonBodyFile ([ordered]@{
+    identifierUris = @($audience)
+    api            = $apiBlock
+    appRoles       = $rolesJson
+  })
+  az rest --method PATCH `
+    --uri "https://graph.microsoft.com/v1.0/applications/$apiObjId" `
+    --headers "Content-Type=application/json" --body "@$patchFile" | Out-Null
+  Remove-Item -LiteralPath $patchFile -ErrorAction SilentlyContinue
+  Write-Host "  audience  $audience  (v2 tokens)"
+  foreach ($r in $Roles) { Write-Host "  role      $($r.Value)" }
+  if ($HasSpa) { Write-Host "  scope     access_as_user" }
+
+  # 2. API service principal ---------------------------------------------------
+  $apiSpId = ''
+  try { $apiSpId = az ad sp show --id $apiAppId --query id -o tsv 2>$null } catch { $apiSpId = '' }
+  if (-not $apiSpId) {
+    $apiSpId = az ad sp create --id $apiAppId --query id -o tsv
+    Write-Host "  created   API service principal $apiSpId"
+  } else {
+    Write-Host "  existing  API service principal $apiSpId"
+  }
+
+  # 3. SPA app (optional) ------------------------------------------------------
+  $spaAppId = ''
+  if ($HasSpa) {
+    Write-Host "→ SPA app registration"
+    $spaAppId = az ad app list --display-name $spaName --query "[0].appId" -o tsv
+    if (-not $spaAppId) {
+      $spaAppId = az ad app create --display-name $spaName `
+        --sign-in-audience $SignInAudience --query appId -o tsv
+      Write-Host "  created   $spaName ($spaAppId)"
+    } else {
+      Write-Host "  existing  $spaName ($spaAppId)"
+    }
+    $spaObjId = az ad app show --id $spaAppId --query id -o tsv
+    $existingSpa = $null
+    try {
+      $existingSpa = az rest --method GET `
+        --uri "https://graph.microsoft.com/v1.0/applications/$spaObjId" 2>$null | ConvertFrom-Json
+    } catch { $existingSpa = $null }
+    $merged = @()
+    if ($existingSpa -and $existingSpa.spa -and $existingSpa.spa.redirectUris) {
+      $merged = @($existingSpa.spa.redirectUris)
+    }
+    foreach ($u in $Redirects[$EnvName]) {
+      if ($merged -notcontains $u) { $merged += $u }
+    }
+    $spaFile = New-JsonBodyFile ([ordered]@{
+      spa          = [ordered]@{ redirectUris = @($merged) }
+      web          = [ordered]@{ redirectUris = @(); implicitGrantSettings = [ordered]@{ enableAccessTokenIssuance = $false; enableIdTokenIssuance = $false } }
+      publicClient = [ordered]@{ redirectUris = @() }
+    })
+    az rest --method PATCH `
+      --uri "https://graph.microsoft.com/v1.0/applications/$spaObjId" `
+      --headers "Content-Type=application/json" --body "@$spaFile" | Out-Null
+    Remove-Item -LiteralPath $spaFile -ErrorAction SilentlyContinue
+    Write-Host "  redirects $($Redirects[$EnvName] -join ' ')"
+
+    $spaSpId = ''
+    try { $spaSpId = az ad sp show --id $spaAppId --query id -o tsv 2>$null } catch { $spaSpId = '' }
+    if (-not $spaSpId) {
+      $spaSpId = az ad sp create --id $spaAppId --query id -o tsv
+      Write-Host "  created   SPA service principal $spaSpId"
+    } else {
+      Write-Host "  existing  SPA service principal $spaSpId"
+    }
+
+    # Delegated permission SPA → API (access_as_user / Scope).
+    $liveScopeId = az ad app show --id $apiAppId `
+      --query "api.oauth2PermissionScopes[?value=='access_as_user'].id | [0]" -o tsv
+    try {
+      az ad app permission add --id $spaAppId --api $apiAppId `
+        --api-permissions "$liveScopeId=Scope" 2>$null | Out-Null
+    } catch { }
+    Write-Host "  granted   access_as_user (delegated)"
+
+    if ($DoConsent) {
+      az ad app permission admin-consent --id $spaAppId
+      Write-Host "  consent   granted for $spaName"
+    } else {
+      Write-Host "  consent   skipped (--no-consent); run: az ad app permission admin-consent --id $spaAppId"
+    }
+  }
+
+  # 4. Groups + role assignment (optional) -------------------------------------
+  if ($DoGroups) {
+    Write-Host "→ Groups + role assignments"
+    foreach ($r in $Roles) {
+      $label = $r.GroupLabel
+      $gname = "$Project$(Get-EnvSfx $EnvName)-$label"
+      $gnick = Get-MailNickname "$Slug$(Get-EnvSfx $EnvName)-$label"
+      $gid = ''
+      try { $gid = az ad group show --group $gname --query id -o tsv 2>$null } catch { $gid = '' }
+      if (-not $gid) {
+        $gid = az ad group create --display-name $gname --mail-nickname $gnick --query id -o tsv
+        Write-Host "  created   group $gname"
+      } else {
+        Write-Host "  existing  group $gname"
+      }
+      Write-Host "  assign    $gname → $($r.Value)"
+      Assign-PrincipalRole -AppId $apiAppId -SpId $apiSpId -Role $r.Value -PrincipalId $gid
+    }
+  }
+
+  # 5. Values to capture -------------------------------------------------------
+  Write-Host ""
+  Write-Host "  ────────────────────────────────────────────────────────────────────"
+  Write-Host "  $EnvName — capture these values:"
+  Write-Host "    API (appsettings.$EnvName.json or container env):"
+  Write-Host "      AzureAd__Instance  = https://login.microsoftonline.com/"
+  Write-Host "      AzureAd__TenantId  = $TenantId"
+  Write-Host "      AzureAd__ClientId  = $apiAppId"
+  Write-Host "      AzureAd__Audience  = $audience"
+  if ($HasSpa) {
+    Write-Host "    SPA (MSAL config):"
+    Write-Host "      clientId    = $spaAppId"
+    Write-Host "      authority   = https://login.microsoftonline.com/$TenantId"
+    Write-Host "      apiScopes   = ['$audience/access_as_user']"
+  }
+}
+
+# ─── RUN ─────────────────────────────────────────────────────────────
+foreach ($tool in @('az')) {
+  if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+    Write-Error "ERROR: $tool not installed"; exit 1
+  }
+}
+
+if ($Tenant) {
+  $subId = az account list --query "[?tenantId=='$Tenant'].id | [0]" -o tsv
+  az account set --subscription $subId
+}
+$TenantId    = az account show --query tenantId -o tsv
+$AccountName = az account show --query user.name -o tsv
+
+if ($Only) { $Envs = @($Only) }
+
+Write-Host "════════════════════════════════════════════════════════════"
+Write-Host "  Project       : $Project"
+Write-Host "  Tenant        : $TenantId"
+Write-Host "  Signed in as  : $AccountName"
+Write-Host "  Environments  : $($Envs -join ' ')"
+Write-Host "  SPA client    : $(if ($HasSpa) { 'yes' } else { 'no' })"
+Write-Host "  Groups        : $(if ($DoGroups) { 'yes' } else { 'no' })"
+Write-Host "════════════════════════════════════════════════════════════"
+
+foreach ($EnvName in $Envs) {
+  Invoke-ProvisionEnv -EnvName $EnvName
+}
+
+Write-Host ""
+Write-Host "✓ Done. Paste the captured values into appsettings or container env vars."
+</script>
+
+<!-- ════════════ MICROSOFT GRAPH PERMISSIONS — BASH FRAGMENT ════════════ -->
+<script type="text/plain" id="bash-graph">
+# ─── MICROSOFT GRAPH PERMISSIONS (generated) ─────────────────────────
+GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
+
+grant_graph_permissions() {  # app_id
+  local app_id="$1" graph_sp i name type perm_id
+  graph_sp=$(az ad sp show --id "$GRAPH_APP_ID" 2>/dev/null || echo '{}')
+  for i in "${!GRAPH_PERMS[@]}"; do
+    name="${GRAPH_PERMS[$i]}"; type="${GRAPH_TYPES[$i]}"
+    if [[ "$type" == Role ]]; then
+      perm_id=$(echo "$graph_sp" | jq -r ".appRoles[]? | select(.value==\"$name\") | .id" 2>/dev/null | head -n1)
+    else
+      perm_id=$(echo "$graph_sp" | jq -r ".oauth2PermissionScopes[]? | select(.value==\"$name\") | .id" 2>/dev/null | head -n1)
+    fi
+    if [[ -z "$perm_id" || "$perm_id" == null ]]; then
+      echo "    WARN: Graph permission '$name' ($type) not found; skipping" >&2; continue
+    fi
+    az ad app permission add --id "$app_id" --api "$GRAPH_APP_ID" --api-permissions "${perm_id}=${type}" 2>/dev/null || true
+    echo "    + $name ($type)"
+  done
+}
+
+apply_graph_for_env() {  # env
+  local env="$1" app_id
+  if [[ $GRAPH_TO_API -eq 1 ]]; then
+    app_id=$(az ad app list --display-name "${PROJECT}-API$(env_sfx "$env")" --query "[0].appId" -o tsv)
+    if [[ -n "$app_id" ]]; then
+      echo "→ ${PROJECT}-API$(env_sfx "$env")"
+      grant_graph_permissions "$app_id"
+      [[ $DO_CONSENT -eq 1 ]] && { az ad app permission admin-consent --id "$app_id"; echo "  consent   granted"; }
+    fi
+  fi
+  if [[ $GRAPH_TO_SPA -eq 1 && $HAS_SPA -eq 1 ]]; then
+    app_id=$(az ad app list --display-name "${PROJECT}-SPA$(env_sfx "$env")" --query "[0].appId" -o tsv)
+    if [[ -n "$app_id" ]]; then
+      echo "→ ${PROJECT}-SPA$(env_sfx "$env")"
+      grant_graph_permissions "$app_id"
+      [[ $DO_CONSENT -eq 1 ]] && { az ad app permission admin-consent --id "$app_id"; echo "  consent   granted"; }
+    fi
+  fi
+}
+
+echo
+echo "════════════════════════════════════════════════════════════"
+echo "  Microsoft Graph permissions"
+echo "════════════════════════════════════════════════════════════"
+for env in "${ENVS[@]}"; do apply_graph_for_env "$env"; done
+</script>
+
+<!-- ════════════ MICROSOFT GRAPH PERMISSIONS — POWERSHELL FRAGMENT ════════════ -->
+<script type="text/plain" id="ps-graph">
+# ─── MICROSOFT GRAPH PERMISSIONS (generated) ─────────────────────────
+$GraphAppId = '00000003-0000-0000-c000-000000000000'
+
+function Grant-GraphPermissions {
+  param([string]$AppId)
+  $graphSp = $null
+  try { $graphSp = az ad sp show --id $GraphAppId 2>$null | ConvertFrom-Json } catch { $graphSp = $null }
+  foreach ($p in $GraphPerms) {
+    $permId = $null
+    if ($p.Type -eq 'Role') {
+      $permId = $graphSp.appRoles | Where-Object { $_.value -eq $p.Name } | Select-Object -First 1 -ExpandProperty id -ErrorAction SilentlyContinue
+    } else {
+      $permId = $graphSp.oauth2PermissionScopes | Where-Object { $_.value -eq $p.Name } | Select-Object -First 1 -ExpandProperty id -ErrorAction SilentlyContinue
+    }
+    if (-not $permId) { Write-Warning "Graph permission '$($p.Name)' ($($p.Type)) not found; skipping"; continue }
+    try { az ad app permission add --id $AppId --api $GraphAppId --api-permissions "$permId=$($p.Type)" 2>$null | Out-Null } catch { }
+    Write-Host "    + $($p.Name) ($($p.Type))"
+  }
+}
+
+function Invoke-GraphForEnv {
+  param([string]$EnvName)
+  if ($GraphToApi) {
+    $appId = az ad app list --display-name "$Project-API$(Get-EnvSfx $EnvName)" --query "[0].appId" -o tsv
+    if ($appId) {
+      Write-Host "→ $Project-API$(Get-EnvSfx $EnvName)"
+      Grant-GraphPermissions -AppId $appId
+      if ($DoConsent) { az ad app permission admin-consent --id $appId; Write-Host "  consent   granted" }
+    }
+  }
+  if ($GraphToSpa -and $HasSpa) {
+    $appId = az ad app list --display-name "$Project-SPA$(Get-EnvSfx $EnvName)" --query "[0].appId" -o tsv
+    if ($appId) {
+      Write-Host "→ $Project-SPA$(Get-EnvSfx $EnvName)"
+      Grant-GraphPermissions -AppId $appId
+      if ($DoConsent) { az ad app permission admin-consent --id $appId; Write-Host "  consent   granted" }
+    }
+  }
+}
+
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════════"
+Write-Host "  Microsoft Graph permissions"
+Write-Host "════════════════════════════════════════════════════════════"
+foreach ($EnvName in $Envs) { Invoke-GraphForEnv -EnvName $EnvName }
+</script>
+
+<!-- ════════════ CLIENT SECRET — BASH FRAGMENT ════════════ -->
+<script type="text/plain" id="bash-secret">
+# ─── CLIENT SECRET (generated) ───────────────────────────────────────
+ensure_client_secret() {  # env
+  local env="$1" app_name app_id existing val
+  app_name="${PROJECT}-API$(env_sfx "$env")"
+  app_id=$(az ad app list --display-name "$app_name" --query "[0].appId" -o tsv)
+  echo "→ $app_name"
+  if [[ -z "$app_id" ]]; then echo "  WARN: app not found; skipping secret" >&2; return 0; fi
+  existing=$(az ad app credential list --id "$app_id" --query "[?displayName=='$SECRET_NAME'] | [0].keyId" -o tsv 2>/dev/null || true)
+  if [[ -n "$existing" ]]; then
+    echo "  existing  client secret '$SECRET_NAME' (value is shown only at creation)"
+    echo "            roll it with: az ad app credential reset --id $app_id --append --display-name '$SECRET_NAME'"
+    return 0
+  fi
+  val=$(az ad app credential reset --id "$app_id" --append --display-name "$SECRET_NAME" --years "$SECRET_YEARS" --query password -o tsv)
+  echo "  created   client secret '$SECRET_NAME' (expires in ${SECRET_YEARS}y)"
+  echo "  ┌──────────────────────────────────────────────────────────────────"
+  echo "  │ CLIENT SECRET — shown once, store it now (e.g. Key Vault):"
+  echo "  │   AzureAd__ClientSecret = $val"
+  echo "  └──────────────────────────────────────────────────────────────────"
+}
+
+echo
+echo "════════════════════════════════════════════════════════════"
+echo "  Client secret (API app)"
+echo "════════════════════════════════════════════════════════════"
+for env in "${ENVS[@]}"; do ensure_client_secret "$env"; done
+</script>
+
+<!-- ════════════ CLIENT SECRET — POWERSHELL FRAGMENT ════════════ -->
+<script type="text/plain" id="ps-secret">
+# ─── CLIENT SECRET (generated) ───────────────────────────────────────
+function Set-ClientSecret {
+  param([string]$EnvName)
+  $appName = "$Project-API$(Get-EnvSfx $EnvName)"
+  $appId = az ad app list --display-name $appName --query "[0].appId" -o tsv
+  Write-Host "→ $appName"
+  if (-not $appId) { Write-Warning "app not found; skipping secret"; return }
+  $existing = ''
+  try { $existing = az ad app credential list --id $appId --query "[?displayName=='$SecretName'] | [0].keyId" -o tsv 2>$null } catch { $existing = '' }
+  if ($existing) {
+    Write-Host "  existing  client secret '$SecretName' (value is shown only at creation)"
+    Write-Host "            roll it with: az ad app credential reset --id $appId --append --display-name '$SecretName'"
+    return
+  }
+  $val = az ad app credential reset --id $appId --append --display-name $SecretName --years $SecretYears --query password -o tsv
+  Write-Host "  created   client secret '$SecretName' (expires in ${SecretYears}y)"
+  Write-Host "  ┌──────────────────────────────────────────────────────────────────"
+  Write-Host "  │ CLIENT SECRET — shown once, store it now (e.g. Key Vault):"
+  Write-Host "  │   AzureAd__ClientSecret = $val"
+  Write-Host "  └──────────────────────────────────────────────────────────────────"
+}
+
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════════"
+Write-Host "  Client secret (API app)"
+Write-Host "════════════════════════════════════════════════════════════"
+foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
+</script>
+
+<script>
+"use strict";
+(function(){
+  // ── helpers (parity with the bash generator) ───────────────────────
+  function slugify(s){
+    return String(s).toLowerCase()
+      .replace(/[ .]/g,'-').replace(/[^a-z0-9-]/g,'')
+      .replace(/-{2,}/g,'-').replace(/^-/,'').replace(/-$/,'');
+  }
+  function bashQuote(s){ return "'" + String(s).replace(/'/g,"'\\''") + "'"; }
+  function emitBashArray(name, arr){ return name + "=(" + arr.map(bashQuote).join(" ") + ")"; }
+  function psQuote(s){ return "'" + String(s).replace(/'/g,"''") + "'"; }
+  function escapeHtml(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  const $ = id => document.getElementById(id);
+
+  // ── i18n (UI strings only — the generated script stays English) ─────
+  let cur = 'en';
+  const I18N = {
+    en: {
+      "hdr.subtitle": 'Generate an idempotent <span style="color:var(--ink)">az&nbsp;CLI</span> provisioning script for Entra ID app registrations',
+      "hdr.pill": "client-side · nothing calls Azure",
+      "sec.project.title": "Project",
+      "sec.project.hint": "name → slug",
+      "field.project.label": 'Project name <span class="req">*</span>',
+      "field.project.ph": "e.g. AegisIQ",
+      "preview.empty": "Enter a project name to derive the slug.",
+      "preview.slug": "slug",
+      "preview.audience": "audience",
+      "preview.apps": "apps",
+      "sec.envs.title": "Environments",
+      "sec.envs.hint": "space / comma separated",
+      "field.envs.label": 'Environments <span class="req">*</span>',
+      "field.envs.help": 'Lowercase letters, digits and <code>-</code>; must start with a letter.',
+      "field.audience.label": "Sign-in audience",
+      "audience.myorg": "AzureADMyOrg — single tenant",
+      "audience.multi": "AzureADMultipleOrgs — any work/school tenant",
+      "audience.personal": "AzureADandPersonalMicrosoftAccount — + personal MSA",
+      "field.primaryEnv.label": "Primary environment",
+      "field.primaryEnv.help": 'Its app names, audience URI and group names omit the <code>-&lt;env&gt;</code> suffix; the others keep it.',
+      "primaryEnv.none": "— none —",
+      "sec.spa.title": "SPA client",
+      "sec.spa.hint": "browser PKCE app",
+      "sec.spa.switch": "This project has a browser SPA client",
+      "sec.spa.sub": 'adds the <code>access_as_user</code> scope, a SPA app, the SPA→API grant &amp; admin consent',
+      "sec.spa.redirects": "Redirect URI(s) per environment — comma separated",
+      "sec.roles.title": "App roles",
+      "sec.roles.hint": "at least one",
+      "btn.addRole": "+ add role",
+      "role.value": "value *",
+      "role.display": "display name",
+      "role.desc": "description",
+      "role.group": "group label",
+      "role.display.ph": "(defaults to value)",
+      "role.desc.ph": "(defaults to “<display> role”)",
+      "role.group.ph": "(value with . → -)",
+      "role.remove": "remove role",
+      "sec.groups.title": "Security groups",
+      "sec.groups.hint": "one group per role",
+      "sec.groups.switch": "Create a security group per role and assign it the role",
+      "sec.groups.sub": 'group name <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edit labels in the role rows above',
+      "sec.graph.title": "Microsoft Graph permissions",
+      "sec.graph.hint": "optional &middot; az ad app permission",
+      "sec.graph.switch": "Grant Microsoft Graph permissions to the app registration(s)",
+      "sec.graph.sub": 'e.g. delegated <code>User.Read</code> — resolved by name at run time &amp; admin-consented',
+      "sec.graph.applyto": "Apply to",
+      "sec.graph.apiApp": "API app",
+      "sec.graph.spaApp": "SPA app",
+      "sec.graph.permsTitle": 'Permissions <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— delegated <code>=Scope</code>, application <code>=Role</code></span>',
+      "sec.graph.delegated": "delegated",
+      "sec.graph.application": "application",
+      "sec.graph.custom": "+ custom",
+      "gperm.delegated": "Delegated",
+      "gperm.application": "Application",
+      "gperm.remove": "remove permission",
+      "warn.appPerms": '<b>Application permissions</b> are added &amp; admin-consented. App-only access also needs a credential — enable <b>Generate a client secret</b> (section 07) for the API app. (The SPA is a public client and can’t use a secret.)',
+      "sec.consent.switch": "Grant admin consent",
+      "sec.consent.sub": 'applies to the SPA <code>access_as_user</code> scope and any Graph permissions; off → <code>--no-consent</code> default',
+      "sec.secret.title": "Client secret",
+      "sec.secret.hint": "optional &middot; az ad app credential",
+      "sec.secret.switch": "Generate a client secret for the API app",
+      "sec.secret.sub": "needed for app-only Graph access / on-behalf-of — printed once at run time; the SPA (public client) never gets one",
+      "field.secretName.label": "Secret display name",
+      "field.secretYears.label": "Validity",
+      "secretYears.1": "1 year",
+      "secretYears.2": "2 years",
+      "sec.secret.warn": 'The secret is printed <b>once</b> at run time — store it immediately (e.g. Azure Key Vault) and never commit it. Re-runs skip creation if a secret with this name already exists.',
+      "sec.output.title": "Output",
+      "sec.output.hint": "review &middot; az login &middot; run",
+      "sec.output.help": 'Pick <b>Bash</b> or <b>PowerShell</b> in the console, then <b>Copy</b> or <b>Download</b>. The script is idempotent and never runs here — review it, sign in with <code>az login</code>, then execute it locally or in Azure Cloud Shell.',
+      "btn.loadExample": "load example",
+      "btn.reset": "reset",
+      "console.copyTitle": "Copy to clipboard",
+      "console.copy": "Copy",
+      "console.copied": "Copied",
+      "console.downloadTitle": "Download script",
+      "console.save": "Save",
+      "console.reviewWarn": "⚠ review before running",
+      "console.lines": '<b id="m-lines">0</b> lines',
+      "console.bytes": '<b id="m-bytes">0</b> bytes',
+      "footnote": 'Self-contained · works offline · the generated script requires <code>az</code> CLI 2.50+ (Bash also needs <code>jq</code> + <code>uuidgen</code>; PowerShell needs pwsh 7+) and a sign-in with <b>Cloud Application Administrator</b> (+ <b>Groups Administrator</b> for groups).',
+      "err.projectRequired": "Project name is required.",
+      "err.slugDerive": "Could not derive a slug (use letters/digits).",
+      "err.envRequired": "At least one valid environment is required.",
+      "err.ignoringInvalid": "Ignoring invalid: {0}",
+      "err.rolesRequired": "At least one role with a valid value (letters, digits and . _ -) is required.",
+      "err.rolesSomeInvalid": "Some role values are invalid (use letters, digits and . _ -) and were skipped.",
+      "warn.spaNoRedirect": "Environment “{0}” has no SPA redirect URI.",
+      "warn.notHttps": "“{0}” is not https (and not localhost) — Entra may reject it.",
+      "err.graphNoSpa": "SPA app selected but no SPA is enabled — pick the API app or enable the SPA.",
+      "err.graphNoTarget": "Select at least one target app (API and/or SPA).",
+      "err.graphNoPerms": "Add at least one Microsoft Graph permission.",
+      "warn.graphInvalidNames": "Some Graph permission names are invalid (use letters, digits, “.” and “_”) and were skipped.",
+      "warn.graphSpaIgnored": "Graph “SPA app” target is ignored because no SPA is enabled.",
+      "err.secretName": "Secret name: use letters, digits, spaces and . _ - only.",
+      "warn.headsUp": "Heads up",
+      "placeholder.awaiting": "// awaiting input",
+      "placeholder.needIntro": "Provide the following to generate the script:",
+      "placeholder.needNone": "Provide the required fields.",
+      "need.project": "a project name",
+      "need.env": "at least one environment",
+      "need.role": "at least one app role",
+      "need.redirect": "a redirect URI for every environment"
+    },
+    fr: {
+      "hdr.subtitle": 'Générez un script de provisionnement <span style="color:var(--ink)">az&nbsp;CLI</span> idempotent pour les inscriptions d’applications Entra ID',
+      "hdr.pill": "côté client · aucun appel à Azure",
+      "sec.project.title": "Projet",
+      "sec.project.hint": "nom → slug",
+      "field.project.label": 'Nom du projet <span class="req">*</span>',
+      "field.project.ph": "ex. : AegisIQ",
+      "preview.empty": "Saisissez un nom de projet pour générer le slug.",
+      "preview.slug": "slug",
+      "preview.audience": "audience",
+      "preview.apps": "apps",
+      "sec.envs.title": "Environnements",
+      "sec.envs.hint": "séparés par espace / virgule",
+      "field.envs.label": 'Environnements <span class="req">*</span>',
+      "field.envs.help": 'Minuscules, chiffres et <code>-</code> ; doit commencer par une lettre.',
+      "field.audience.label": "Audience de connexion",
+      "audience.myorg": "AzureADMyOrg — un seul locataire",
+      "audience.multi": "AzureADMultipleOrgs — tout locataire professionnel/scolaire",
+      "audience.personal": "AzureADandPersonalMicrosoftAccount — + compte Microsoft personnel",
+      "field.primaryEnv.label": "Environnement principal",
+      "field.primaryEnv.help": 'Ses noms d’app, l’URI d’audience et les noms de groupe omettent le suffixe <code>-&lt;env&gt;</code> ; les autres le conservent.',
+      "primaryEnv.none": "— aucun —",
+      "sec.spa.title": "Client SPA",
+      "sec.spa.hint": "app PKCE navigateur",
+      "sec.spa.switch": "Ce projet a un client SPA navigateur",
+      "sec.spa.sub": 'ajoute l’étendue <code>access_as_user</code>, une app SPA, l’octroi SPA→API &amp; le consentement administrateur',
+      "sec.spa.redirects": "URI de redirection par environnement — séparés par virgule",
+      "sec.roles.title": "Rôles d’application",
+      "sec.roles.hint": "au moins un",
+      "btn.addRole": "+ ajouter un rôle",
+      "role.value": "valeur *",
+      "role.display": "nom d’affichage",
+      "role.desc": "description",
+      "role.group": "libellé du groupe",
+      "role.display.ph": "(par défaut : la valeur)",
+      "role.desc.ph": "(par défaut : « rôle <display> »)",
+      "role.group.ph": "(valeur avec . → -)",
+      "role.remove": "supprimer le rôle",
+      "sec.groups.title": "Groupes de sécurité",
+      "sec.groups.hint": "un groupe par rôle",
+      "sec.groups.switch": "Créer un groupe de sécurité par rôle et lui attribuer le rôle",
+      "sec.groups.sub": 'nom du groupe <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; modifiez les libellés dans les lignes de rôle ci-dessus',
+      "sec.graph.title": "Autorisations Microsoft Graph",
+      "sec.graph.hint": "optionnel &middot; az ad app permission",
+      "sec.graph.switch": "Accorder des autorisations Microsoft Graph aux inscriptions d’applications",
+      "sec.graph.sub": 'ex. délégué <code>User.Read</code> — résolu par nom à l’exécution &amp; consenti par l’administrateur',
+      "sec.graph.applyto": "Appliquer à",
+      "sec.graph.apiApp": "app API",
+      "sec.graph.spaApp": "app SPA",
+      "sec.graph.permsTitle": 'Autorisations <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— délégué <code>=Scope</code>, application <code>=Role</code></span>',
+      "sec.graph.delegated": "délégué",
+      "sec.graph.application": "application",
+      "sec.graph.custom": "+ personnalisé",
+      "gperm.delegated": "Délégué",
+      "gperm.application": "Application",
+      "gperm.remove": "supprimer l’autorisation",
+      "warn.appPerms": 'Les <b>autorisations d’application</b> sont ajoutées &amp; consenties par l’administrateur. L’accès app-only nécessite aussi des identifiants — activez <b>Générer un secret client</b> (section 07) pour l’app API. (Le SPA est un client public et ne peut pas utiliser de secret.)',
+      "sec.consent.switch": "Accorder le consentement administrateur",
+      "sec.consent.sub": 's’applique à l’étendue SPA <code>access_as_user</code> et à toute autorisation Graph ; désactivé → <code>--no-consent</code> par défaut',
+      "sec.secret.title": "Secret client",
+      "sec.secret.hint": "optionnel &middot; az ad app credential",
+      "sec.secret.switch": "Générer un secret client pour l’app API",
+      "sec.secret.sub": "requis pour l’accès Graph app-only / on-behalf-of — affiché une seule fois à l’exécution ; le SPA (client public) n’en reçoit jamais",
+      "field.secretName.label": "Nom d’affichage du secret",
+      "field.secretYears.label": "Validité",
+      "secretYears.1": "1 an",
+      "secretYears.2": "2 ans",
+      "sec.secret.warn": 'Le secret est affiché <b>une seule fois</b> à l’exécution — stockez-le immédiatement (p. ex. Azure Key Vault) et ne le validez jamais dans le code. Les ré-exécutions ignorent la création si un secret portant ce nom existe déjà.',
+      "sec.output.title": "Sortie",
+      "sec.output.hint": "vérifier &middot; az login &middot; exécuter",
+      "sec.output.help": 'Choisissez <b>Bash</b> ou <b>PowerShell</b> dans la console, puis <b>Copier</b> ou <b>Télécharger</b>. Le script est idempotent et ne s’exécute jamais ici — vérifiez-le, connectez-vous avec <code>az login</code>, puis exécutez-le localement ou dans Azure Cloud Shell.',
+      "btn.loadExample": "charger l’exemple",
+      "btn.reset": "réinitialiser",
+      "console.copyTitle": "Copier dans le presse-papiers",
+      "console.copy": "Copier",
+      "console.copied": "Copié",
+      "console.downloadTitle": "Télécharger le script",
+      "console.save": "Enregistrer",
+      "console.reviewWarn": "⚠ vérifier avant d’exécuter",
+      "console.lines": '<b id="m-lines">0</b> lignes',
+      "console.bytes": '<b id="m-bytes">0</b> octets',
+      "footnote": 'Autonome · fonctionne hors ligne · le script généré nécessite <code>az</code> CLI 2.50+ (Bash requiert aussi <code>jq</code> + <code>uuidgen</code> ; PowerShell requiert pwsh 7+) et une connexion en tant que <b>Cloud Application Administrator</b> (+ <b>Groups Administrator</b> pour les groupes).',
+      "err.projectRequired": "Le nom du projet est requis.",
+      "err.slugDerive": "Impossible de générer un slug (utilisez des lettres/chiffres).",
+      "err.envRequired": "Au moins un environnement valide est requis.",
+      "err.ignoringInvalid": "Éléments non valides ignorés : {0}",
+      "err.rolesRequired": "Au moins un rôle avec une valeur valide (lettres, chiffres et . _ -) est requis.",
+      "err.rolesSomeInvalid": "Certaines valeurs de rôle ne sont pas valides (utilisez lettres, chiffres et . _ -) et ont été ignorées.",
+      "warn.spaNoRedirect": "L’environnement « {0} » n’a aucune URI de redirection SPA.",
+      "warn.notHttps": "« {0} » n’est pas https (ni localhost) — Entra peut le rejeter.",
+      "err.graphNoSpa": "App SPA sélectionnée mais aucun SPA n’est activé — choisissez l’app API ou activez le SPA.",
+      "err.graphNoTarget": "Sélectionnez au moins une app cible (API et/ou SPA).",
+      "err.graphNoPerms": "Ajoutez au moins une autorisation Microsoft Graph.",
+      "warn.graphInvalidNames": "Certains noms d’autorisation Graph ne sont pas valides (utilisez lettres, chiffres, « . » et « _ ») et ont été ignorés.",
+      "warn.graphSpaIgnored": "La cible Graph « app SPA » est ignorée car aucun SPA n’est activé.",
+      "err.secretName": "Nom du secret : utilisez uniquement lettres, chiffres, espaces et . _ -.",
+      "warn.headsUp": "À noter",
+      "placeholder.awaiting": "// en attente de saisie",
+      "placeholder.needIntro": "Fournissez les éléments suivants pour générer le script :",
+      "placeholder.needNone": "Fournissez les champs requis.",
+      "need.project": "un nom de projet",
+      "need.env": "au moins un environnement",
+      "need.role": "au moins un rôle d’application",
+      "need.redirect": "une URI de redirection pour chaque environnement"
+    },
+    es: {
+      "hdr.subtitle": 'Genera un script de aprovisionamiento <span style="color:var(--ink)">az&nbsp;CLI</span> idempotente para los registros de aplicaciones de Entra ID',
+      "hdr.pill": "del lado del cliente · no llama a Azure",
+      "sec.project.title": "Proyecto",
+      "sec.project.hint": "nombre → slug",
+      "field.project.label": 'Nombre del proyecto <span class="req">*</span>',
+      "field.project.ph": "ej.: AegisIQ",
+      "preview.empty": "Introduce un nombre de proyecto para derivar el slug.",
+      "preview.slug": "slug",
+      "preview.audience": "audiencia",
+      "preview.apps": "apps",
+      "sec.envs.title": "Entornos",
+      "sec.envs.hint": "separados por espacio / coma",
+      "field.envs.label": 'Entornos <span class="req">*</span>',
+      "field.envs.help": 'Minúsculas, dígitos y <code>-</code>; debe empezar por una letra.',
+      "field.audience.label": "Audiencia de inicio de sesión",
+      "audience.myorg": "AzureADMyOrg — inquilino único",
+      "audience.multi": "AzureADMultipleOrgs — cualquier inquilino profesional/educativo",
+      "audience.personal": "AzureADandPersonalMicrosoftAccount — + cuenta Microsoft personal",
+      "field.primaryEnv.label": "Entorno principal",
+      "field.primaryEnv.help": 'Sus nombres de app, la URI de audiencia y los nombres de grupo omiten el sufijo <code>-&lt;env&gt;</code>; los demás lo conservan.',
+      "primaryEnv.none": "— ninguno —",
+      "sec.spa.title": "Cliente SPA",
+      "sec.spa.hint": "app PKCE de navegador",
+      "sec.spa.switch": "Este proyecto tiene un cliente SPA de navegador",
+      "sec.spa.sub": 'añade el ámbito <code>access_as_user</code>, una app SPA, la concesión SPA→API &amp; el consentimiento de administrador',
+      "sec.spa.redirects": "URI de redirección por entorno — separados por coma",
+      "sec.roles.title": "Roles de aplicación",
+      "sec.roles.hint": "al menos uno",
+      "btn.addRole": "+ añadir rol",
+      "role.value": "valor *",
+      "role.display": "nombre para mostrar",
+      "role.desc": "descripción",
+      "role.group": "etiqueta del grupo",
+      "role.display.ph": "(por defecto: el valor)",
+      "role.desc.ph": "(por defecto: «rol <display>»)",
+      "role.group.ph": "(valor con . → -)",
+      "role.remove": "eliminar rol",
+      "sec.groups.title": "Grupos de seguridad",
+      "sec.groups.hint": "un grupo por rol",
+      "sec.groups.switch": "Crear un grupo de seguridad por rol y asignarle el rol",
+      "sec.groups.sub": 'nombre del grupo <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edita las etiquetas en las filas de rol de arriba',
+      "sec.graph.title": "Permisos de Microsoft Graph",
+      "sec.graph.hint": "opcional &middot; az ad app permission",
+      "sec.graph.switch": "Conceder permisos de Microsoft Graph a los registros de aplicaciones",
+      "sec.graph.sub": 'ej. delegado <code>User.Read</code> — resuelto por nombre en tiempo de ejecución &amp; con consentimiento de administrador',
+      "sec.graph.applyto": "Aplicar a",
+      "sec.graph.apiApp": "app API",
+      "sec.graph.spaApp": "app SPA",
+      "sec.graph.permsTitle": 'Permisos <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— delegado <code>=Scope</code>, aplicación <code>=Role</code></span>',
+      "sec.graph.delegated": "delegado",
+      "sec.graph.application": "aplicación",
+      "sec.graph.custom": "+ personalizado",
+      "gperm.delegated": "Delegado",
+      "gperm.application": "Aplicación",
+      "gperm.remove": "eliminar permiso",
+      "warn.appPerms": 'Los <b>permisos de aplicación</b> se añaden &amp; reciben consentimiento de administrador. El acceso solo de aplicación también necesita una credencial — activa <b>Generar un secreto de cliente</b> (sección 07) para la app API. (El SPA es un cliente público y no puede usar un secreto.)',
+      "sec.consent.switch": "Conceder consentimiento de administrador",
+      "sec.consent.sub": 'se aplica al ámbito SPA <code>access_as_user</code> y a cualquier permiso de Graph; desactivado → <code>--no-consent</code> por defecto',
+      "sec.secret.title": "Secreto de cliente",
+      "sec.secret.hint": "opcional &middot; az ad app credential",
+      "sec.secret.switch": "Generar un secreto de cliente para la app API",
+      "sec.secret.sub": "necesario para el acceso a Graph solo de aplicación / on-behalf-of — se muestra una vez en tiempo de ejecución; el SPA (cliente público) nunca recibe uno",
+      "field.secretName.label": "Nombre para mostrar del secreto",
+      "field.secretYears.label": "Validez",
+      "secretYears.1": "1 año",
+      "secretYears.2": "2 años",
+      "sec.secret.warn": 'El secreto se muestra <b>una sola vez</b> en tiempo de ejecución — guárdalo de inmediato (p. ej. Azure Key Vault) y nunca lo subas al repositorio. Las reejecuciones omiten la creación si ya existe un secreto con este nombre.',
+      "sec.output.title": "Salida",
+      "sec.output.hint": "revisar &middot; az login &middot; ejecutar",
+      "sec.output.help": 'Elige <b>Bash</b> o <b>PowerShell</b> en la consola y luego <b>Copiar</b> o <b>Descargar</b>. El script es idempotente y nunca se ejecuta aquí — revísalo, inicia sesión con <code>az login</code> y ejecútalo localmente o en Azure Cloud Shell.',
+      "btn.loadExample": "cargar ejemplo",
+      "btn.reset": "restablecer",
+      "console.copyTitle": "Copiar al portapapeles",
+      "console.copy": "Copiar",
+      "console.copied": "Copiado",
+      "console.downloadTitle": "Descargar el script",
+      "console.save": "Guardar",
+      "console.reviewWarn": "⚠ revisar antes de ejecutar",
+      "console.lines": '<b id="m-lines">0</b> líneas',
+      "console.bytes": '<b id="m-bytes">0</b> bytes',
+      "footnote": 'Autónomo · funciona sin conexión · el script generado requiere <code>az</code> CLI 2.50+ (Bash también necesita <code>jq</code> + <code>uuidgen</code>; PowerShell necesita pwsh 7+) y un inicio de sesión como <b>Cloud Application Administrator</b> (+ <b>Groups Administrator</b> para grupos).',
+      "err.projectRequired": "El nombre del proyecto es obligatorio.",
+      "err.slugDerive": "No se pudo derivar un slug (usa letras/dígitos).",
+      "err.envRequired": "Se requiere al menos un entorno válido.",
+      "err.ignoringInvalid": "Ignorando no válidos: {0}",
+      "err.rolesRequired": "Se requiere al menos un rol con un valor válido (letras, dígitos y . _ -).",
+      "err.rolesSomeInvalid": "Algunos valores de rol no son válidos (usa letras, dígitos y . _ -) y se omitieron.",
+      "warn.spaNoRedirect": "El entorno «{0}» no tiene URI de redirección de SPA.",
+      "warn.notHttps": "«{0}» no es https (ni localhost) — Entra puede rechazarlo.",
+      "err.graphNoSpa": "App SPA seleccionada pero no hay SPA habilitado — elige la app API o habilita el SPA.",
+      "err.graphNoTarget": "Selecciona al menos una app de destino (API y/o SPA).",
+      "err.graphNoPerms": "Añade al menos un permiso de Microsoft Graph.",
+      "warn.graphInvalidNames": "Algunos nombres de permiso de Graph no son válidos (usa letras, dígitos, «.» y «_») y se omitieron.",
+      "warn.graphSpaIgnored": "El destino Graph «app SPA» se ignora porque no hay SPA habilitado.",
+      "err.secretName": "Nombre del secreto: usa solo letras, dígitos, espacios y . _ -.",
+      "warn.headsUp": "Atención",
+      "placeholder.awaiting": "// esperando entrada",
+      "placeholder.needIntro": "Proporciona lo siguiente para generar el script:",
+      "placeholder.needNone": "Proporciona los campos obligatorios.",
+      "need.project": "un nombre de proyecto",
+      "need.env": "al menos un entorno",
+      "need.role": "al menos un rol de aplicación",
+      "need.redirect": "una URI de redirección para cada entorno"
+    }
+  };
+  function t(key, params){
+    const dict = I18N[cur] || I18N.en;
+    let s = (dict[key] != null) ? dict[key] : ((I18N.en[key] != null) ? I18N.en[key] : key);
+    if (params) Object.keys(params).forEach(k => { s = s.split('{'+k+'}').join(params[k]); });
+    return s;
+  }
+  function translateTree(root){
+    root = root || document;
+    root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
+    root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    root.querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
+  }
+  function applyI18n(lang){
+    cur = I18N[lang] ? lang : 'en';
+    document.documentElement.lang = cur;
+    if ($('lang')) $('lang').value = cur;
+    translateTree(document);
+    try { localStorage.setItem('entra-prov-lang', cur); } catch(e){}
+    render();
+  }
+
+  const bashEngine = readEngine('bash-engine');
+  const psEngine   = readEngine('ps-engine');
+  function readEngine(id){
+    let t = $(id).textContent.replace(/^\r?\n/, '');
+    if (!t.endsWith('\n')) t += '\n';
+    return t;
+  }
+  const bashGraph = readEngine('bash-graph');
+  const psGraph   = readEngine('ps-graph');
+  const bashSecret = readEngine('bash-secret');
+  const psSecret   = readEngine('ps-secret');
+  // The unique final "Done" line in each engine; the Graph pass is inserted before it.
+  const BASH_DONE = 'echo\necho "✓ Done. Paste the captured values into appsettings or container env vars."';
+  const PS_DONE   = 'Write-Host ""\nWrite-Host "✓ Done. Paste the captured values into appsettings or container env vars."';
+  function injectGraph(engine, frag, anchor){
+    const block = frag.replace(/\n+$/, '') + '\n\n';
+    const idx = engine.indexOf(anchor);
+    return idx < 0 ? engine + block : engine.slice(0, idx) + block + engine.slice(idx);
+  }
+
+  let shell = 'bash';
+  let lastRedirSig = '';
+  let rawScript = '';
+  // Primary-environment choice: null = auto (prod when present), '' = explicit none, else an env name.
+  let primaryChoice = null;
+  function resolvePrimary(envs){
+    if (primaryChoice === '') return '';
+    if (primaryChoice && envs.indexOf(primaryChoice) !== -1) return primaryChoice;
+    return envs.indexOf('prod') !== -1 ? 'prod' : '';
+  }
+
+  // ── role rows ──────────────────────────────────────────────────────
+  function roleRow(value, display, desc, label){
+    const div = document.createElement('div');
+    div.className = 'role';
+    div.innerHTML =
+      '<div><span class="mini" data-i18n="role.value">value *</span><input type="text" class="rv" placeholder="Filings.Manage" autocomplete="off" spellcheck="false"></div>' +
+      '<div><span class="mini" data-i18n="role.display">display name</span><input type="text" class="rd" data-i18n-ph="role.display.ph" placeholder="(defaults to value)" autocomplete="off" spellcheck="false"></div>' +
+      '<div><span class="mini" data-i18n="role.desc">description</span><input type="text" class="rdesc" data-i18n-ph="role.desc.ph" placeholder="(defaults to “<display> role”)" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="gl"><span class="mini" data-i18n="role.group">group label</span><input type="text" class="rgl" data-i18n-ph="role.group.ph" placeholder="(value with . → -)" autocomplete="off" spellcheck="false"></div>' +
+      '<button class="xbtn" type="button" title="remove role" data-i18n-title="role.remove">×</button>';
+    translateTree(div);
+    div.querySelector('.rv').value = value || '';
+    div.querySelector('.rd').value = display || '';
+    div.querySelector('.rdesc').value = desc || '';
+    div.querySelector('.rgl').value = label || '';
+    div.querySelector('.xbtn').addEventListener('click', () => {
+      if ($('roles').children.length > 1) { div.remove(); render(); }
+    });
+    div.querySelectorAll('input').forEach(i => i.addEventListener('input', render));
+    return div;
+  }
+  function addRole(v,d,de,l){ $('roles').appendChild(roleRow(v,d,de,l)); }
+
+  // ── Microsoft Graph permission rows ────────────────────────────────
+  function graphPermRow(name, type){
+    const div = document.createElement('div');
+    div.className = 'gperm';
+    div.innerHTML =
+      '<input type="text" class="gpn" placeholder="User.Read" autocomplete="off" spellcheck="false">' +
+      '<select class="gpt"><option value="Scope" data-i18n="gperm.delegated">Delegated</option><option value="Role" data-i18n="gperm.application">Application</option></select>' +
+      '<button class="xbtn" type="button" title="remove permission" data-i18n-title="gperm.remove">×</button>';
+    translateTree(div);
+    div.querySelector('.gpn').value = name || '';
+    div.querySelector('.gpt').value = (type === 'Role') ? 'Role' : 'Scope';
+    div.querySelector('.xbtn').addEventListener('click', () => { div.remove(); render(); });
+    div.querySelector('.gpn').addEventListener('input', render);
+    div.querySelector('.gpt').addEventListener('change', render);
+    return div;
+  }
+  function addGraphPerm(n,t){ $('graph-perms').appendChild(graphPermRow(n,t)); }
+
+  // ── read the form into one state object ────────────────────────────
+  function parseList(s){ return String(s).split(/[\s,]+/).filter(Boolean); }
+
+  function readState(){
+    const project = $('project').value.trim();
+    const slug = slugify(project);
+    const rawEnvs = parseList($('envs').value);
+    const envs = [], badEnvs = [];
+    for (let e of rawEnvs){
+      const el = e.toLowerCase();
+      if (/^[a-z][a-z0-9-]*$/.test(el)) { if (!envs.includes(el)) envs.push(el); }
+      else badEnvs.push(e);
+    }
+    const hasSpa = $('hasSpa').checked;
+    const doGroups = $('doGroups').checked;
+    const consentOn = $('doConsent').checked;
+    const audience = $('audience').value;
+    const primaryEnv = resolvePrimary(envs);
+
+    const redirects = {};
+    document.querySelectorAll('#redirects input').forEach(inp => {
+      redirects[inp.dataset.env] = parseList(inp.value);
+    });
+
+    const roles = [];
+    $('roles').querySelectorAll('.role').forEach(row => {
+      const value = row.querySelector('.rv').value.trim();
+      if (!value) return;
+      const display = row.querySelector('.rd').value.trim() || value;
+      const desc = row.querySelector('.rdesc').value.trim() || (display + ' role');
+      const groupLabel = row.querySelector('.rgl').value.trim() || value.replace(/\./g,'-');
+      roles.push({ value, display, desc, groupLabel, _validValue: /^[A-Za-z0-9._-]+$/.test(value) });
+    });
+
+    const graphOn = $('graphOn').checked;
+    const graphApi = $('graphApi').checked;
+    const graphSpa = $('graphSpa').checked;
+    const gperms = [];
+    $('graph-perms').querySelectorAll('.gperm').forEach(row => {
+      const name = row.querySelector('.gpn').value.trim();
+      if (!name) return;
+      const type = row.querySelector('.gpt').value === 'Role' ? 'Role' : 'Scope';
+      gperms.push({ name, type, _valid: /^[A-Za-z0-9._]+$/.test(name) });
+    });
+
+    const secretOn = $('secretOn').checked;
+    const secretName = $('secretName').value.trim();
+    const secretYears = parseInt($('secretYears').value, 10) || 1;
+
+    return { project, slug, envs, badEnvs, hasSpa, doGroups, consentOn, audience, primaryEnv, redirects, roles,
+             graphOn, graphApi, graphSpa, gperms, secretOn, secretName, secretYears };
+  }
+
+  // ── derived UI (env chips, redirect inputs, group-label columns) ───
+  function syncDerivedUI(st){
+    // env chips
+    const chips = $('env-chips'); chips.innerHTML = '';
+    st.envs.forEach(e => { const c = document.createElement('span'); c.className='chip'; c.textContent=e; chips.appendChild(c); });
+    st.badEnvs.forEach(e => { const c = document.createElement('span'); c.className='chip bad'; c.textContent=e+' ✕'; chips.appendChild(c); });
+
+    // primary-environment selector (rebuilt from the current env set; resolved choice preselected)
+    const psel = $('primaryEnv');
+    const popts = ['<option value="">' + escapeHtml(t('primaryEnv.none')) + '</option>'];
+    st.envs.forEach(e => { popts.push('<option value="' + escapeHtml(e) + '">' + escapeHtml(e) + '</option>'); });
+    psel.innerHTML = popts.join('');
+    psel.value = st.primaryEnv;
+
+    // SPA block visibility
+    $('spa-block').hidden = !st.hasSpa;
+
+    // Graph block + targets
+    $('graph-block').hidden = !st.graphOn;
+    $('graphSpa').disabled = !st.hasSpa;
+    $('graphSpaWrap').classList.toggle('disabled', !st.hasSpa);
+    const hasRole = st.graphOn && st.gperms.some(p => p.type === 'Role');
+    const aw = $('graph-app-warn');
+    aw.hidden = !hasRole;
+    if (hasRole) aw.innerHTML = t('warn.appPerms');
+
+    // Client secret block visibility
+    $('secret-block').hidden = !st.secretOn;
+
+    // Admin-consent control governs BOTH the SPA scope and Graph permissions
+    const consentRelevant = st.hasSpa || st.graphOn;
+    $('consent-wrap').hidden = !consentRelevant;
+    $('consent-switch').classList.toggle('disabled', !consentRelevant);
+    $('doConsent').disabled = !consentRelevant;
+
+    // redirect inputs — rebuild only when env-set or SPA toggles (preserve focus + values)
+    const sig = (st.hasSpa ? '1:' : '0:') + st.envs.join(',');
+    if (st.hasSpa && sig !== lastRedirSig){
+      const prev = {};
+      document.querySelectorAll('#redirects input').forEach(i => prev[i.dataset.env] = i.value);
+      const box = $('redirects'); box.innerHTML = '';
+      st.envs.forEach(e => {
+        const f = document.createElement('div'); f.className = 'field';
+        f.innerHTML = '<label class="lbl">'+escapeHtml(e)+'</label><input type="text" autocomplete="off" spellcheck="false" placeholder="https://app-'+escapeHtml(e)+'.example.com">';
+        const inp = f.querySelector('input');
+        inp.dataset.env = e;
+        inp.value = prev[e] || '';
+        inp.addEventListener('input', render);
+        box.appendChild(f);
+      });
+    }
+    lastRedirSig = st.hasSpa ? sig : '';
+
+    // group-label column visibility
+    $('roles').classList.toggle('show-group', st.doGroups);
+  }
+
+  // ── validation ─────────────────────────────────────────────────────
+  function validate(st){
+    const errs = {}; const warns = [];
+    if (!st.project) errs.project = t('err.projectRequired');
+    else if (!st.slug) errs.project = t('err.slugDerive');
+    else $('proj-preview').innerHTML =
+      t('preview.slug')+' <b>'+escapeHtml(st.slug)+'</b> · '+t('preview.audience')+' <b>api://'+escapeHtml(st.slug)+'-&lt;env&gt;</b> · '+t('preview.apps')+' <b>'+escapeHtml(st.project)+'-API-&lt;env&gt;</b>'+(st.hasSpa?' / <b>'+escapeHtml(st.project)+'-SPA-&lt;env&gt;</b>':'');
+    if (st.project && !st.slug) $('proj-preview').textContent = t('preview.empty');
+
+    if (!st.envs.length) errs.envs = t('err.envRequired');
+    else if (st.badEnvs.length) errs.envs = t('err.ignoringInvalid', {0: st.badEnvs.join(', ')});
+
+    const realRoles = st.roles.filter(r => r._validValue);
+    if (!realRoles.length) errs.roles = t('err.rolesRequired');
+    else if (st.roles.some(r => !r._validValue)) errs.roles = t('err.rolesSomeInvalid');
+
+    if (st.hasSpa){
+      st.envs.forEach(e => {
+        const uris = st.redirects[e] || [];
+        if (!uris.length) warns.push(t('warn.spaNoRedirect', {0: e}));
+        uris.forEach(u => {
+          if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u) && !/^http:\/\/127\.0\.0\.1/.test(u))
+            warns.push(t('warn.notHttps', {0: u}));
+        });
+      });
+    }
+    // Microsoft Graph permissions
+    let graph = { active: false, toApi: false, toSpa: false, perms: [] };
+    if (st.graphOn){
+      const validPerms = st.gperms.filter(p => p._valid);
+      const toApi = st.graphApi;
+      const toSpa = st.graphSpa && st.hasSpa;
+      if (!toApi && !toSpa){
+        errs.graph = (st.graphSpa && !st.hasSpa)
+          ? t('err.graphNoSpa')
+          : t('err.graphNoTarget');
+      } else if (!validPerms.length){
+        errs.graph = t('err.graphNoPerms');
+      }
+      if (st.gperms.some(p => !p._valid)) warns.push(t('warn.graphInvalidNames'));
+      if (st.graphSpa && !st.hasSpa) warns.push(t('warn.graphSpaIgnored'));
+      graph = { active: !errs.graph && validPerms.length > 0 && (toApi || toSpa), toApi, toSpa, perms: validPerms };
+    }
+
+    // Client secret (API app)
+    let secret = { active: false, name: 'provisioner-generated', years: 1 };
+    if (st.secretOn){
+      const name = st.secretName || 'provisioner-generated';
+      if (!/^[A-Za-z0-9 ._-]+$/.test(name)) errs.secret = t('err.secretName');
+      const years = (st.secretYears === 2) ? 2 : 1;
+      secret = { active: !errs.secret, name, years };
+    }
+
+    return { errs, warns, realRoles, graph, secret };
+  }
+
+  // ── generators ─────────────────────────────────────────────────────
+  function effState(st, realRoles, graph, secret){
+    // build the effective state used for generation (defaults already applied in readState)
+    return Object.assign({}, st, { roles: realRoles, graph: graph, secret: secret });
+  }
+
+  function generateBash(st){
+    const outBase = "entra-provision-" + st.slug + ".sh";
+    const L = [];
+    L.push("#!/usr/bin/env bash");
+    L.push("# AUTO-GENERATED by entra-provision-gen.sh — review before running.");
+    L.push("#");
+    L.push('# Provisions Entra ID (Azure AD) for "' + st.project + '" across: ' + st.envs.join(" "));
+    L.push("# Idempotent: safe to re-run. Existing scope/role IDs, groups and");
+    L.push("# assignments are preserved or detected and skipped.");
+    L.push("#");
+    L.push("# Requires: az CLI 2.50+, jq, uuidgen. Sign in first with:  az login");
+    L.push("#   (Cloud Application Administrator; plus Groups Administrator if groups are used)");
+    L.push("#");
+    L.push("# Usage:");
+    L.push("#   ./" + outBase + "                 # all environments");
+    L.push("#   ./" + outBase + " --only <env>    # a single environment");
+    L.push("#   ./" + outBase + " --no-groups     # skip group creation + role assignment");
+    L.push("#   ./" + outBase + " --no-consent    # skip the SPA admin-consent grant");
+    L.push("#   ./" + outBase + " --tenant <id>   # target a specific tenant");
+    L.push("set -euo pipefail");
+    L.push("");
+    L.push("# ─── CONFIG (generated — safe to edit) ───────────────────────────────");
+    L.push("PROJECT=" + bashQuote(st.project));
+    L.push("SLUG=" + bashQuote(st.slug));
+    L.push("HAS_SPA=" + (st.hasSpa ? 1 : 0));
+    L.push("DO_GROUPS=" + (st.doGroups ? 1 : 0));
+    L.push("SIGN_IN_AUDIENCE=" + bashQuote(st.audience));
+    L.push("DO_CONSENT=" + (st.consentOn ? 1 : 0));
+    L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
+    L.push("PRIMARY_ENV=" + bashQuote(st.primaryEnv || ""));
+    L.push("");
+    L.push(emitBashArray("ENVS", st.envs));
+    L.push("");
+    L.push("# Application ID URI per environment (token audience)");
+    L.push("declare -A AUDIENCES=(");
+    st.envs.forEach(e => L.push("  [" + e + "]=" + bashQuote("api://" + st.slug + (e === st.primaryEnv ? "" : "-" + e))));
+    L.push(")");
+    L.push("");
+    L.push("# SPA redirect URIs per environment (space separated; used only when HAS_SPA=1)");
+    L.push("declare -A REDIRECTS=(");
+    if (st.hasSpa) st.envs.forEach(e => L.push("  [" + e + "]=" + bashQuote((st.redirects[e] || []).join(" "))));
+    L.push(")");
+    L.push("");
+    L.push("# App roles (parallel arrays: value / display name / description)");
+    L.push(emitBashArray("ROLE_VALUES", st.roles.map(r => r.value)));
+    L.push(emitBashArray("ROLE_DISPLAYS", st.roles.map(r => r.display)));
+    L.push(emitBashArray("ROLE_DESCS", st.roles.map(r => r.desc)));
+    L.push("");
+    L.push("# Security group label per role (parallel to ROLE_VALUES; used only when DO_GROUPS=1)");
+    L.push(st.doGroups ? emitBashArray("ROLE_GROUP_LABELS", st.roles.map(r => r.groupLabel)) : "ROLE_GROUP_LABELS=()");
+    L.push("");
+    const g = st.graph;
+    if (g && g.active){
+      L.push("# Microsoft Graph permissions (parallel arrays: name / type Scope|Role)");
+      L.push("GRAPH_TO_API=" + (g.toApi ? 1 : 0));
+      L.push("GRAPH_TO_SPA=" + (g.toSpa ? 1 : 0));
+      L.push(emitBashArray("GRAPH_PERMS", g.perms.map(p => p.name)));
+      L.push(emitBashArray("GRAPH_TYPES", g.perms.map(p => p.type)));
+      L.push("");
+    }
+    const sec = st.secret;
+    if (sec && sec.active){
+      L.push("# Client secret for the API app (created if absent; value printed once at run time)");
+      L.push("SECRET_NAME=" + bashQuote(sec.name));
+      L.push("SECRET_YEARS=" + sec.years);
+      L.push("");
+    }
+    let engine = bashEngine;
+    if (g && g.active) engine = injectGraph(engine, bashGraph, BASH_DONE);
+    if (sec && sec.active) engine = injectGraph(engine, bashSecret, BASH_DONE);
+    return L.join("\n") + "\n" + engine;
+  }
+
+  function generatePowerShell(st){
+    const outBase = "entra-provision-" + st.slug + ".ps1";
+    const L = [];
+    L.push("#!/usr/bin/env pwsh");
+    L.push("<#");
+    L.push(".SYNOPSIS");
+    L.push("  AUTO-GENERATED by entra-provision-gen.html — review before running.");
+    L.push("");
+    L.push('  Provisions Entra ID (Azure AD) for "' + st.project + '" across: ' + st.envs.join(" "));
+    L.push("  Idempotent: safe to re-run. Existing scope/role IDs, groups and");
+    L.push("  assignments are preserved or detected and skipped.");
+    L.push("");
+    L.push("  Requires: PowerShell 7+ (pwsh) and az CLI 2.50+. Sign in first with:  az login");
+    L.push("    (Cloud Application Administrator; plus Groups Administrator if groups are used)");
+    L.push("");
+    L.push(".EXAMPLE");
+    L.push("  ./" + outBase + "                 # all environments");
+    L.push("  ./" + outBase + " -Only uat       # a single environment");
+    L.push("  ./" + outBase + " -NoGroups       # skip group creation + role assignment");
+    L.push("  ./" + outBase + " -NoConsent      # skip the SPA admin-consent grant");
+    L.push("  ./" + outBase + " -Tenant <id>    # target a specific tenant");
+    L.push("#>");
+    L.push("param(");
+    L.push("  [string]$Only,");
+    L.push("  [string]$Tenant,");
+    L.push("  [switch]$NoGroups,");
+    L.push("  [switch]$NoConsent");
+    L.push(")");
+    L.push("$ErrorActionPreference = 'Stop'");
+    L.push("if ($PSVersionTable.PSVersion.Major -ge 7) { $PSNativeCommandUseErrorActionPreference = $true }");
+    L.push("");
+    L.push("# ─── CONFIG (generated — safe to edit) ───────────────────────────────");
+    L.push("$Project        = " + psQuote(st.project));
+    L.push("$Slug           = " + psQuote(st.slug));
+    L.push("$HasSpa         = $" + (st.hasSpa ? "true" : "false"));
+    L.push("$DoGroups       = $" + (st.doGroups ? "true" : "false"));
+    L.push("$SignInAudience = " + psQuote(st.audience));
+    L.push(st.consentOn ? "$DoConsent      = -not $NoConsent" : "$DoConsent      = $false");
+    L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
+    L.push("$PrimaryEnv     = " + psQuote(st.primaryEnv || ""));
+    L.push("if ($NoGroups) { $DoGroups = $false }");
+    L.push("");
+    L.push("$Envs = @(" + st.envs.map(psQuote).join(", ") + ")");
+    L.push("");
+    L.push("# Application ID URI per environment (token audience)");
+    L.push("$Audiences = @{");
+    st.envs.forEach(e => L.push("  " + psQuote(e) + " = " + psQuote("api://" + st.slug + (e === st.primaryEnv ? "" : "-" + e))));
+    L.push("}");
+    L.push("");
+    L.push("# SPA redirect URIs per environment (used only when $HasSpa)");
+    L.push("$Redirects = @{");
+    if (st.hasSpa) st.envs.forEach(e => L.push("  " + psQuote(e) + " = @(" + (st.redirects[e] || []).map(psQuote).join(", ") + ")"));
+    L.push("}");
+    L.push("");
+    L.push("# App roles (value / display name / description / security-group label)");
+    L.push("$Roles = @(");
+    st.roles.forEach(r => L.push("  @{ Value = " + psQuote(r.value) + "; Display = " + psQuote(r.display) +
+      "; Desc = " + psQuote(r.desc) + "; GroupLabel = " + psQuote(r.groupLabel) + " }"));
+    L.push(")");
+    L.push("");
+    const g = st.graph;
+    if (g && g.active){
+      L.push("# Microsoft Graph permissions (Name / Type Scope|Role)");
+      L.push("$GraphToApi = $" + (g.toApi ? "true" : "false"));
+      L.push("$GraphToSpa = $" + (g.toSpa ? "true" : "false"));
+      L.push("$GraphPerms = @(");
+      g.perms.forEach(p => L.push("  @{ Name = " + psQuote(p.name) + "; Type = " + psQuote(p.type) + " }"));
+      L.push(")");
+      L.push("");
+    }
+    const sec = st.secret;
+    if (sec && sec.active){
+      L.push("# Client secret for the API app (created if absent; value printed once at run time)");
+      L.push("$SecretName  = " + psQuote(sec.name));
+      L.push("$SecretYears = " + sec.years);
+      L.push("");
+    }
+    let engine = psEngine;
+    if (g && g.active) engine = injectGraph(engine, psGraph, PS_DONE);
+    if (sec && sec.active) engine = injectGraph(engine, psSecret, PS_DONE);
+    return L.join("\n") + "\n" + engine;
+  }
+
+  // ── syntax highlight (dim comment lines) ───────────────────────────
+  function highlight(text, sh){
+    let inBlock = false;
+    return text.split("\n").map(line => {
+      const t = line.replace(/^\s+/, '');
+      let isC = false;
+      if (sh === 'ps'){
+        if (inBlock){ isC = true; if (t.includes('#>')) inBlock = false; }
+        else if (t.startsWith('<#')){ isC = true; if (!t.includes('#>')) inBlock = true; }
+        else if (t.startsWith('#')){ isC = true; }
+      } else {
+        if (t.startsWith('#')) isC = true;
+      }
+      const esc = escapeHtml(line);
+      return isC ? '<span class="cm">' + esc + '</span>' : esc;
+    }).join("\n");
+  }
+
+  // ── main render ────────────────────────────────────────────────────
+  function render(){
+    const st = readState();
+    syncDerivedUI(st);
+    const { errs, warns, realRoles, graph, secret } = validate(st);
+
+    // field errors
+    $('project-err').textContent = errs.project || '';
+    $('project').classList.toggle('bad', !!errs.project);
+    $('envs-err').textContent = errs.envs || '';
+    $('roles-err').textContent = errs.roles || '';
+    $('graph-err').textContent = errs.graph || '';
+    $('secret-err').textContent = errs.secret || '';
+    $('secretName').classList.toggle('bad', !!errs.secret);
+
+    // warnings box
+    const wb = $('warnbox');
+    if (warns.length){
+      wb.hidden = false;
+      wb.innerHTML = '<b>' + t('warn.headsUp') + '</b><ul>' + warns.map(w => '<li>' + escapeHtml(w) + '</li>').join('') + '</ul>';
+    } else wb.hidden = true;
+
+    const fileBase = "entra-provision-" + (st.slug || "project");
+    $('fname').textContent = fileBase + (shell === 'bash' ? '.sh' : '.ps1');
+
+    const ok = st.project && st.slug && st.envs.length && realRoles.length &&
+               (!st.hasSpa || st.envs.every(e => (st.redirects[e] || []).length));
+
+    const code = $('code'), body = $('cbody');
+    if (!ok){
+      rawScript = '';
+      const need = [];
+      if (!st.project || !st.slug) need.push(t('need.project'));
+      if (!st.envs.length) need.push(t('need.env'));
+      if (!realRoles.length) need.push(t('need.role'));
+      if (st.hasSpa && st.envs.length && !st.envs.every(e => (st.redirects[e] || []).length)) need.push(t('need.redirect'));
+      body.innerHTML = '<div class="placeholder"><b>' + escapeHtml(t('placeholder.awaiting')) + '</b><br>' +
+        (need.length ? t('placeholder.needIntro') : t('placeholder.needNone')) +
+        (need.length ? '<ul>' + need.map(n => '<li>' + escapeHtml(n) + '</li>').join('') + '</ul>' : '') +
+        '</div>';
+      $('m-lines').textContent = '0';
+      $('m-bytes').textContent = '0';
+      setCopyEnabled(false);
+      save(st);
+      return;
+    }
+
+    const eff = effState(st, realRoles, graph, secret);
+    rawScript = shell === 'bash' ? generateBash(eff) : generatePowerShell(eff);
+
+    body.innerHTML = '<pre><code id="code">' + highlight(rawScript, shell) + '</code></pre>';
+    $('m-lines').textContent = String(rawScript.replace(/\n$/, '').split("\n").length);
+    $('m-bytes').textContent = String(new Blob([rawScript]).size);
+    setCopyEnabled(true);
+    save(st);
+  }
+
+  function setCopyEnabled(on){
+    $('copy').disabled = !on;
+    $('download').disabled = !on;
+  }
+
+  // ── persistence ────────────────────────────────────────────────────
+  function save(st){
+    try {
+      localStorage.setItem('entra-prov-gen', JSON.stringify({
+        project: $('project').value, envs: $('envs').value, audience: st.audience,
+        hasSpa: st.hasSpa, doGroups: st.doGroups, consentOn: st.consentOn,
+        primary: primaryChoice, redirects: st.redirects, shell,
+        roles: Array.from($('roles').querySelectorAll('.role')).map(r => ({
+          v: r.querySelector('.rv').value, d: r.querySelector('.rd').value,
+          de: r.querySelector('.rdesc').value, l: r.querySelector('.rgl').value
+        })),
+        graphOn: st.graphOn, graphApi: st.graphApi, graphSpa: st.graphSpa,
+        gperms: Array.from($('graph-perms').querySelectorAll('.gperm')).map(r => ({
+          n: r.querySelector('.gpn').value, t: r.querySelector('.gpt').value
+        })),
+        secretOn: st.secretOn, secretName: $('secretName').value, secretYears: $('secretYears').value
+      }));
+    } catch(e){}
+  }
+  function load(){
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('entra-prov-gen') || 'null'); } catch(e){}
+    if (!s) return false;
+    $('project').value = s.project || '';
+    $('envs').value = s.envs != null ? s.envs : 'test uat';
+    if (s.audience) $('audience').value = s.audience;
+    $('hasSpa').checked = !!s.hasSpa;
+    $('doGroups').checked = !!s.doGroups;
+    $('doConsent').checked = s.consentOn !== false;
+    primaryChoice = (s.primary !== undefined) ? s.primary : null;
+    $('graphOn').checked = !!s.graphOn;
+    $('graphApi').checked = s.graphApi !== false;
+    $('graphSpa').checked = !!s.graphSpa;
+    $('secretOn').checked = !!s.secretOn;
+    if (s.secretName != null) $('secretName').value = s.secretName;
+    if (s.secretYears) $('secretYears').value = s.secretYears;
+    if (s.shell === 'ps') setShell('ps', true);
+    $('roles').innerHTML = '';
+    (s.roles && s.roles.length ? s.roles : [{}]).forEach(r => addRole(r.v, r.d, r.de, r.l));
+    $('graph-perms').innerHTML = '';
+    (s.gperms && s.gperms.length ? s.gperms : [{n:'User.Read',t:'Scope'}]).forEach(p => addGraphPerm(p.n, p.t));
+    // restore redirects after derived UI builds them
+    syncDerivedUI(readState());
+    if (s.redirects) document.querySelectorAll('#redirects input').forEach(i => { if (s.redirects[i.dataset.env]) i.value = s.redirects[i.dataset.env].join(' '); });
+    return true;
+  }
+
+  // ── shell toggle ───────────────────────────────────────────────────
+  function setShell(sh, silent){
+    shell = sh;
+    $('tab-bash').classList.toggle('on', sh === 'bash');
+    $('tab-ps').classList.toggle('on', sh === 'ps');
+    if (!silent) render();
+  }
+
+  // ── copy / download ────────────────────────────────────────────────
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((res, rej) => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); res(); } catch(e){ rej(e); }
+      document.body.removeChild(ta);
+    });
+  }
+  function flashCopied(){
+    const b = $('copy'), l = $('copy-label');
+    b.classList.add('ok'); l.textContent = t('console.copied');
+    setTimeout(() => { b.classList.remove('ok'); l.textContent = t('console.copy'); }, 1300);
+  }
+  function download(){
+    if (!rawScript) return;
+    const blob = new Blob([rawScript], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = $('fname').textContent;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+
+  // ── example / reset ────────────────────────────────────────────────
+  function loadExample(){
+    $('project').value = 'AegisIQ';
+    $('envs').value = 'test uat';
+    $('audience').value = 'AzureADMyOrg';
+    $('hasSpa').checked = true;
+    $('doGroups').checked = true;
+    $('doConsent').checked = true;
+    $('roles').innerHTML = '';
+    addRole('Filings.Manage', '', '', '');
+    addRole('Reports.View', '', '', '');
+    $('graphOn').checked = true;
+    $('graphApi').checked = true;
+    $('graphSpa').checked = false;
+    $('graph-perms').innerHTML = '';
+    addGraphPerm('User.Read', 'Scope');
+    $('secretOn').checked = true;
+    $('secretName').value = 'provisioner-generated';
+    $('secretYears').value = '1';
+    primaryChoice = null;
+    lastRedirSig = '';
+    syncDerivedUI(readState());
+    document.querySelectorAll('#redirects input').forEach(i => {
+      i.value = 'https://aegisiq-' + i.dataset.env + '.example.com';
+    });
+    render();
+  }
+  function reset(){
+    try { localStorage.removeItem('entra-prov-gen'); } catch(e){}
+    $('project').value = '';
+    $('envs').value = 'test uat';
+    $('audience').value = 'AzureADMyOrg';
+    $('hasSpa').checked = false;
+    $('doGroups').checked = false;
+    $('doConsent').checked = true;
+    $('roles').innerHTML = '';
+    addRole('', '', '', '');
+    $('graphOn').checked = false;
+    $('graphApi').checked = true;
+    $('graphSpa').checked = false;
+    $('graph-perms').innerHTML = '';
+    addGraphPerm('User.Read', 'Scope');
+    $('secretOn').checked = false;
+    $('secretName').value = 'provisioner-generated';
+    $('secretYears').value = '1';
+    primaryChoice = null;
+    lastRedirSig = '';
+    render();
+  }
+
+  // ── wire up ────────────────────────────────────────────────────────
+  ['project','envs','audience','hasSpa','doGroups','doConsent'].forEach(id =>
+    $(id).addEventListener('input', render));
+  $('hasSpa').addEventListener('change', render);
+  $('doGroups').addEventListener('change', render);
+  $('doConsent').addEventListener('change', render);
+  $('primaryEnv').addEventListener('change', () => { primaryChoice = $('primaryEnv').value; render(); });
+  ['graphOn','graphApi','graphSpa'].forEach(id => $(id).addEventListener('change', render));
+  ['secretOn','secretYears'].forEach(id => $(id).addEventListener('change', render));
+  $('secretName').addEventListener('input', render);
+  document.querySelector('.quickadd').addEventListener('click', e => {
+    const b = e.target.closest('.qa'); if (!b) return;
+    if (b.dataset.custom) addGraphPerm('', 'Scope');
+    else addGraphPerm(b.dataset.name, b.dataset.type);
+    render();
+  });
+  $('add-role').addEventListener('click', () => { addRole('', '', '', ''); render(); });
+  $('tab-bash').addEventListener('click', () => setShell('bash'));
+  $('tab-ps').addEventListener('click', () => setShell('ps'));
+  $('copy').addEventListener('click', () => { if (rawScript) copyText(rawScript).then(flashCopied).catch(()=>{}); });
+  $('download').addEventListener('click', download);
+  $('load-example').addEventListener('click', loadExample);
+  $('reset').addEventListener('click', reset);
+
+  // ── theme toggle ───────────────────────────────────────────────────
+  function currentTheme(){ return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+  function setTheme(theme){
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  $('theme-toggle').addEventListener('click', () => {
+    const next = currentTheme() === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    try { localStorage.setItem('entra-prov-theme', next); } catch(e){}
+  });
+  // follow the OS preference live until the user makes an explicit choice
+  if (window.matchMedia){
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onPref = e => {
+      let stored = null; try { stored = localStorage.getItem('entra-prov-theme'); } catch(_){}
+      if (!stored) setTheme(e.matches ? 'light' : 'dark');
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onPref);
+    else if (mq.addListener) mq.addListener(onPref);
+  }
+
+  // ── language selector ──────────────────────────────────────────────
+  $('lang').addEventListener('change', () => applyI18n($('lang').value));
+
+  // ── init ───────────────────────────────────────────────────────────
+  let initLang = '';
+  try { initLang = localStorage.getItem('entra-prov-lang') || ''; } catch(e){}
+  if (!initLang){
+    const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    initLang = (nav === 'fr' || nav === 'es') ? nav : 'en';
+  }
+  cur = I18N[initLang] ? initLang : 'en';
+
+  if (!load()){ addRole('', '', '', ''); addGraphPerm('User.Read', 'Scope'); }
+  applyI18n(cur);  // sets <html lang>, translates the DOM, and calls render()
+})();
+</script>
+</body>
+</html>
