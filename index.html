@@ -612,6 +612,18 @@ provision_env() {
     api_block=$(jq -nc '{requestedAccessTokenVersion: 2}')
   fi
 
+  # Graph forbids removing or changing an *enabled* scope/role; disable existing ones first.
+  local disable_roles disable_scopes
+  disable_roles=$(echo "$existing" | jq -c '[(.appRoles // [])[] | .isEnabled=false]')
+  disable_scopes=$(echo "$existing" | jq -c '[(.api.oauth2PermissionScopes // [])[] | .isEnabled=false]')
+  if [[ "$disable_roles" != "[]" || "$disable_scopes" != "[]" ]]; then
+    jq -nc --argjson r "$disable_roles" --argjson s "$disable_scopes" \
+      '{appRoles: $r, api: {oauth2PermissionScopes: $s}}' >"$WORK/api-disable.json"
+    az rest --method PATCH \
+      --uri "https://graph.microsoft.com/v1.0/applications/$api_obj_id" \
+      --headers "Content-Type=application/json" --body "@$WORK/api-disable.json" >/dev/null
+  fi
+
   jq -nc --arg aud "$audience" --argjson api "$api_block" --argjson roles "$roles_json" \
     '{identifierUris: [$aud], api: $api, appRoles: $roles}' >"$WORK/api-patch.json"
   az rest --method PATCH \
@@ -878,6 +890,22 @@ function Invoke-ProvisionEnv {
     }
   } else {
     $apiBlock = [ordered]@{ requestedAccessTokenVersion = 2 }
+  }
+
+  # Graph forbids removing or changing an *enabled* scope/role; disable existing ones first.
+  $existRoles  = if ($existing -and $existing.appRoles) { @($existing.appRoles) } else { @() }
+  $existScopes = if ($existing -and $existing.api -and $existing.api.oauth2PermissionScopes) { @($existing.api.oauth2PermissionScopes) } else { @() }
+  if ($existRoles.Count -or $existScopes.Count) {
+    foreach ($x in $existRoles)  { $x.isEnabled = $false }
+    foreach ($x in $existScopes) { $x.isEnabled = $false }
+    $disableFile = New-JsonBodyFile ([ordered]@{
+      appRoles = @($existRoles)
+      api      = [ordered]@{ oauth2PermissionScopes = @($existScopes) }
+    })
+    az rest --method PATCH `
+      --uri "https://graph.microsoft.com/v1.0/applications/$apiObjId" `
+      --headers "Content-Type=application/json" --body "@$disableFile" | Out-Null
+    Remove-Item -LiteralPath $disableFile -ErrorAction SilentlyContinue
   }
 
   $patchFile = New-JsonBodyFile ([ordered]@{
