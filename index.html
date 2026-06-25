@@ -274,7 +274,7 @@
         <div class="shead"><span class="idx">01</span><h2 data-i18n="sec.project.title">Project</h2><span class="hint" data-i18n="sec.project.hint">name &rarr; slug</span></div>
         <div class="field">
           <label class="lbl" for="project" data-i18n-html="field.project.label">Project name <span class="req">*</span></label>
-          <input type="text" id="project" placeholder="e.g. AegisIQ" data-i18n-ph="field.project.ph" autocomplete="off" spellcheck="false">
+          <input type="text" id="project" placeholder="e.g. Contoso" data-i18n-ph="field.project.ph" autocomplete="off" spellcheck="false">
           <div class="err" id="project-err"></div>
           <div class="preview" id="proj-preview" data-i18n="preview.empty">Enter a project name to derive the slug.</div>
         </div>
@@ -1254,7 +1254,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.project.title": "Project",
       "sec.project.hint": "name → slug",
       "field.project.label": 'Project name <span class="req">*</span>',
-      "field.project.ph": "e.g. AegisIQ",
+      "field.project.ph": "e.g. Contoso",
       "preview.empty": "Enter a project name to derive the slug.",
       "preview.slug": "slug",
       "preview.audience": "audience",
@@ -1359,7 +1359,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.project.title": "Projet",
       "sec.project.hint": "nom → slug",
       "field.project.label": 'Nom du projet <span class="req">*</span>',
-      "field.project.ph": "ex. : AegisIQ",
+      "field.project.ph": "ex. : Contoso",
       "preview.empty": "Saisissez un nom de projet pour générer le slug.",
       "preview.slug": "slug",
       "preview.audience": "audience",
@@ -1464,7 +1464,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.project.title": "Proyecto",
       "sec.project.hint": "nombre → slug",
       "field.project.label": 'Nombre del proyecto <span class="req">*</span>',
-      "field.project.ph": "ej.: AegisIQ",
+      "field.project.ph": "ej.: Contoso",
       "preview.empty": "Introduce un nombre de proyecto para derivar el slug.",
       "preview.slug": "slug",
       "preview.audience": "audiencia",
@@ -1622,7 +1622,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     const div = document.createElement('div');
     div.className = 'role';
     div.innerHTML =
-      '<div><span class="mini" data-i18n="role.value">value *</span><input type="text" class="rv" placeholder="Filings.Manage" autocomplete="off" spellcheck="false"></div>' +
+      '<div><span class="mini" data-i18n="role.value">value *</span><input type="text" class="rv" placeholder="Items.Manage" autocomplete="off" spellcheck="false"></div>' +
       '<div><span class="mini" data-i18n="role.display">display name</span><input type="text" class="rd" data-i18n-ph="role.display.ph" placeholder="(defaults to value)" autocomplete="off" spellcheck="false"></div>' +
       '<div><span class="mini" data-i18n="role.desc">description</span><input type="text" class="rdesc" data-i18n-ph="role.desc.ph" placeholder="(defaults to “<display> role”)" autocomplete="off" spellcheck="false"></div>' +
       '<div class="gl"><span class="mini" data-i18n="role.group">group label</span><input type="text" class="rgl" data-i18n-ph="role.group.ph" placeholder="(value with . → -)" autocomplete="off" spellcheck="false"></div>' +
@@ -2151,14 +2151,14 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
 
   // ── example / reset ────────────────────────────────────────────────
   function loadExample(){
-    $('project').value = 'AegisIQ';
+    $('project').value = 'Contoso';
     $('envs').value = 'test uat';
     $('audience').value = 'AzureADMyOrg';
     $('hasSpa').checked = true;
     $('doGroups').checked = true;
     $('doConsent').checked = true;
     $('roles').innerHTML = '';
-    addRole('Filings.Manage', '', '', '');
+    addRole('Items.Manage', '', '', '');
     addRole('Reports.View', '', '', '');
     $('graphOn').checked = true;
     $('graphApi').checked = true;
@@ -2172,7 +2172,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     lastRedirSig = '';
     syncDerivedUI(readState());
     document.querySelectorAll('#redirects input').forEach(i => {
-      i.value = 'https://aegisiq-' + i.dataset.env + '.example.com';
+      i.value = 'https://contoso-' + i.dataset.env + '.example.com';
     });
     render();
   }
