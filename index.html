@@ -336,6 +336,11 @@
           <input type="text" id="groupPrefix" placeholder="e.g. RES-SCC-" data-i18n-ph="field.groupPrefix.ph" autocomplete="off" spellcheck="false">
           <div class="help" data-i18n-html="field.groupPrefix.help">Prepended to group display names only, e.g. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Blank = none.</div>
         </div>
+        <label class="switch" for="groupClaims" style="margin-top:14px">
+          <input type="checkbox" id="groupClaims">
+          <span class="track"></span>
+          <span><span class="txt" data-i18n="sec.groupclaims.switch">Emit the group memberships claim (for nested groups)</span><br><span class="sub" data-i18n-html="sec.groupclaims.sub">sets <code>groupMembershipClaims=SecurityGroup</code> on the API app so nested groups reach the token; map them to roles in your API (needs the client secret + <code>GroupMember.Read.All</code> for overage)</span></span>
+        </label>
       </div>
 
       <div class="section">
@@ -365,6 +370,7 @@
             <span class="qa-label" data-i18n="sec.graph.application">application</span>
             <button type="button" class="qa" data-name="User.Read.All" data-type="Role">User.Read.All</button>
             <button type="button" class="qa" data-name="Group.Read.All" data-type="Role">Group.Read.All</button>
+            <button type="button" class="qa" data-name="GroupMember.Read.All" data-type="Role">GroupMember.Read.All</button>
             <button type="button" class="qa" data-name="Directory.Read.All" data-type="Role">Directory.Read.All</button>
             <button type="button" class="qa qa-custom" data-custom="1" data-i18n="sec.graph.custom">+ custom</button>
           </div>
@@ -654,8 +660,8 @@ provision_env() {
       --headers "Content-Type=application/json" --body "@$WORK/api-disable.json" >/dev/null
   fi
 
-  jq -nc --arg aud "$audience" --argjson api "$api_block" --argjson roles "$roles_json" \
-    '{identifierUris: [$aud], api: $api, appRoles: $roles}' >"$WORK/api-patch.json"
+  jq -nc --arg aud "$audience" --argjson api "$api_block" --argjson roles "$roles_json" --argjson gmc "$EMIT_GROUP_CLAIMS" \
+    '{identifierUris: [$aud], api: $api, appRoles: $roles} + (if $gmc == 1 then {groupMembershipClaims: "SecurityGroup"} else {} end)' >"$WORK/api-patch.json"
   az rest --method PATCH \
     --uri "https://graph.microsoft.com/v1.0/applications/$api_obj_id" \
     --headers "Content-Type=application/json" --body "@$WORK/api-patch.json" >/dev/null
@@ -747,6 +753,7 @@ provision_env() {
       fi
       echo "  assign    $gname → ${ROLE_VALUES[$i]}"
       assign_principal_role "$api_app_id" "$api_sp_id" "${ROLE_VALUES[$i]}" "$gid"
+      [[ $EMIT_GROUP_CLAIMS -eq 1 ]] && printf '  %s = %s\n' "$gid" "${ROLE_VALUES[$i]}" >>"$WORK/group-role-map.txt"
     done
   fi
 
@@ -786,6 +793,12 @@ fi
 for env in "${ENVS[@]}"; do
   provision_env "$env"
 done
+
+if [[ $EMIT_GROUP_CLAIMS -eq 1 && -f "$WORK/group-role-map.txt" ]]; then
+  echo
+  echo "Group → role mapping (group object id = role value) — paste into your API GroupRoleMap:"
+  sort -u "$WORK/group-role-map.txt"
+fi
 
 echo
 echo "✓ Done. Paste the captured values into appsettings or container env vars."
@@ -952,11 +965,13 @@ function Invoke-ProvisionEnv {
     Remove-Item -LiteralPath $disableFile -ErrorAction SilentlyContinue
   }
 
-  $patchFile = New-JsonBodyFile ([ordered]@{
+  $apiPatch = [ordered]@{
     identifierUris = @($audience)
     api            = $apiBlock
     appRoles       = $rolesJson
-  })
+  }
+  if ($EmitGroupClaims) { $apiPatch.groupMembershipClaims = 'SecurityGroup' }
+  $patchFile = New-JsonBodyFile $apiPatch
   az rest --method PATCH `
     --uri "https://graph.microsoft.com/v1.0/applications/$apiObjId" `
     --headers "Content-Type=application/json" --body "@$patchFile" | Out-Null
@@ -1056,6 +1071,7 @@ function Invoke-ProvisionEnv {
       }
       Write-Host "  assign    $gname → $($r.Value)"
       Assign-PrincipalRole -AppId $apiAppId -SpId $apiSpId -Role $r.Value -PrincipalId $gid
+      if ($EmitGroupClaims) { $script:GroupRoleMap += "  $gid = $($r.Value)" }
     }
   }
 
@@ -1129,8 +1145,15 @@ if (-not $Yes) {
   }
 }
 
+$GroupRoleMap = @()
 foreach ($EnvName in $Envs) {
   Invoke-ProvisionEnv -EnvName $EnvName
+}
+
+if ($EmitGroupClaims -and $GroupRoleMap.Count) {
+  Write-Host ""
+  Write-Host "Group → role mapping (group object id = role value) — paste into your API GroupRoleMap:"
+  $GroupRoleMap | Sort-Object -Unique | ForEach-Object { Write-Host $_ }
 }
 
 Write-Host ""
@@ -1365,6 +1388,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "field.groupPrefix.label": "Group name prefix",
       "field.groupPrefix.ph": "e.g. RES-SCC-",
       "field.groupPrefix.help": 'Prepended to group display names only, e.g. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Blank = none.',
+      "sec.groupclaims.switch": "Emit the group memberships claim (for nested groups)",
+      "sec.groupclaims.sub": 'sets <code>groupMembershipClaims=SecurityGroup</code> on the API app so nested groups reach the token; map them to roles in your API (needs the client secret + <code>GroupMember.Read.All</code> for overage)',
       "sec.graph.title": "Microsoft Graph permissions",
       "sec.graph.hint": "optional &middot; az ad app permission",
       "sec.graph.switch": "Grant Microsoft Graph permissions to the app registration(s)",
@@ -1475,6 +1500,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "field.groupPrefix.label": "Préfixe de nom de groupe",
       "field.groupPrefix.ph": "ex. RES-SCC-",
       "field.groupPrefix.help": 'Ajouté uniquement devant les noms d’affichage des groupes, p. ex. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Vide = aucun.',
+      "sec.groupclaims.switch": "Émettre la revendication des appartenances de groupe (pour les groupes imbriqués)",
+      "sec.groupclaims.sub": 'définit <code>groupMembershipClaims=SecurityGroup</code> sur l’app API pour que les groupes imbriqués figurent dans le jeton ; mappez-les vers des rôles dans votre API (nécessite le secret client + <code>GroupMember.Read.All</code> en cas de dépassement)',
       "sec.graph.title": "Autorisations Microsoft Graph",
       "sec.graph.hint": "optionnel &middot; az ad app permission",
       "sec.graph.switch": "Accorder des autorisations Microsoft Graph aux inscriptions d’applications",
@@ -1585,6 +1612,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "field.groupPrefix.label": "Prefijo de nombre de grupo",
       "field.groupPrefix.ph": "ej. RES-SCC-",
       "field.groupPrefix.help": 'Se antepone solo a los nombres para mostrar de los grupos, p. ej. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Vacío = ninguno.',
+      "sec.groupclaims.switch": "Emitir la notificación de pertenencia a grupos (para grupos anidados)",
+      "sec.groupclaims.sub": 'establece <code>groupMembershipClaims=SecurityGroup</code> en la app API para que los grupos anidados lleguen al token; mapéalos a roles en tu API (requiere el secreto de cliente + <code>GroupMember.Read.All</code> para el desbordamiento)',
       "sec.graph.title": "Permisos de Microsoft Graph",
       "sec.graph.hint": "opcional &middot; az ad app permission",
       "sec.graph.switch": "Conceder permisos de Microsoft Graph a los registros de aplicaciones",
@@ -1761,6 +1790,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     const hasSpa = $('hasSpa').checked;
     const doGroups = $('doGroups').checked;
     const groupPrefix = $('groupPrefix').value.trim();
+    const groupClaims = $('groupClaims').checked;
     const consentOn = $('doConsent').checked;
     const audience = $('audience').value;
     const primaryEnv = resolvePrimary(envs);
@@ -1795,7 +1825,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     const secretName = $('secretName').value.trim();
     const secretYears = parseInt($('secretYears').value, 10) || 1;
 
-    return { project, slug, envs, badEnvs, hasSpa, doGroups, groupPrefix, consentOn, audience, primaryEnv, redirects, roles,
+    return { project, slug, envs, badEnvs, hasSpa, doGroups, groupPrefix, groupClaims, consentOn, audience, primaryEnv, redirects, roles,
              graphOn, graphApi, graphSpa, gperms, secretOn, secretName, secretYears };
   }
 
@@ -1948,6 +1978,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("HAS_SPA=" + (st.hasSpa ? 1 : 0));
     L.push("DO_GROUPS=" + (st.doGroups ? 1 : 0));
     L.push("GROUP_PREFIX=" + bashQuote(st.doGroups ? (st.groupPrefix || "") : ""));
+    L.push("# Emit the transitive group memberships claim on the API app (1) so nested groups reach the token.");
+    L.push("EMIT_GROUP_CLAIMS=" + (st.groupClaims ? 1 : 0));
     L.push("SIGN_IN_AUDIENCE=" + bashQuote(st.audience));
     L.push("DO_CONSENT=" + (st.consentOn ? 1 : 0));
     L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
@@ -2034,6 +2066,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("$HasSpa         = $" + (st.hasSpa ? "true" : "false"));
     L.push("$DoGroups       = $" + (st.doGroups ? "true" : "false"));
     L.push("$GroupPrefix    = " + psQuote(st.doGroups ? (st.groupPrefix || "") : ""));
+    L.push("$EmitGroupClaims = $" + (st.groupClaims ? "true" : "false"));
     L.push("$SignInAudience = " + psQuote(st.audience));
     L.push(st.consentOn ? "$DoConsent      = -not $NoConsent" : "$DoConsent      = $false");
     L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
@@ -2171,7 +2204,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     try {
       localStorage.setItem('entra-prov-gen', JSON.stringify({
         project: $('project').value, envs: $('envs').value, audience: st.audience,
-        hasSpa: st.hasSpa, doGroups: st.doGroups, groupPrefix: st.groupPrefix, consentOn: st.consentOn,
+        hasSpa: st.hasSpa, doGroups: st.doGroups, groupPrefix: st.groupPrefix, groupClaims: st.groupClaims, consentOn: st.consentOn,
         primary: primaryChoice, redirects: st.redirects, shell,
         roles: Array.from($('roles').querySelectorAll('.role')).map(r => ({
           v: r.querySelector('.rv').value, d: r.querySelector('.rd').value,
@@ -2195,6 +2228,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $('hasSpa').checked = !!s.hasSpa;
     $('doGroups').checked = !!s.doGroups;
     if (s.groupPrefix != null) $('groupPrefix').value = s.groupPrefix;
+    $('groupClaims').checked = !!s.groupClaims;
     $('doConsent').checked = s.consentOn !== false;
     primaryChoice = (s.primary !== undefined) ? s.primary : null;
     $('graphOn').checked = !!s.graphOn;
@@ -2270,6 +2304,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $('secretName').value = 'provisioner-generated';
     $('secretYears').value = '1';
     $('groupPrefix').value = '';
+    $('groupClaims').checked = false;
     primaryChoice = null;
     lastRedirSig = '';
     syncDerivedUI(readState());
@@ -2297,6 +2332,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $('secretName').value = 'provisioner-generated';
     $('secretYears').value = '1';
     $('groupPrefix').value = '';
+    $('groupClaims').checked = false;
     primaryChoice = null;
     lastRedirSig = '';
     render();
@@ -2307,6 +2343,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $(id).addEventListener('input', render));
   $('hasSpa').addEventListener('change', render);
   $('doGroups').addEventListener('change', render);
+  $('groupClaims').addEventListener('change', render);
   $('doConsent').addEventListener('change', render);
   $('primaryEnv').addEventListener('change', () => { primaryChoice = $('primaryEnv').value; render(); });
   ['graphOn','graphApi','graphSpa'].forEach(id => $(id).addEventListener('change', render));
