@@ -331,6 +331,11 @@
           <span class="track"></span>
           <span><span class="txt" data-i18n="sec.groups.switch">Create a security group per role and assign it the role</span><br><span class="sub" data-i18n-html="sec.groups.sub">group name <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edit labels in the role rows above</span></span>
         </label>
+        <div class="field" style="margin-top:14px">
+          <label class="lbl" for="groupPrefix" data-i18n="field.groupPrefix.label">Group name prefix</label>
+          <input type="text" id="groupPrefix" placeholder="e.g. RES-SCC-" data-i18n-ph="field.groupPrefix.ph" autocomplete="off" spellcheck="false">
+          <div class="help" data-i18n-html="field.groupPrefix.help">Prepended to group display names only, e.g. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Blank = none.</div>
+        </div>
       </div>
 
       <div class="section">
@@ -455,6 +460,7 @@
 # ─── ENGINE (generated; edit with care) ──────────────────────────────
 ONLY=""
 TENANT_OVERRIDE=""
+ASSUME_YES=0
 
 usage() { sed -n '2,/^set -/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1; }
 
@@ -464,6 +470,7 @@ while [[ $# -gt 0 ]]; do
     --tenant)     TENANT_OVERRIDE="$2"; shift 2 ;;
     --no-groups)  DO_GROUPS=0; shift ;;
     --no-consent) DO_CONSENT=0; shift ;;
+    --yes|-y)     ASSUME_YES=1; shift ;;
     -h|--help)    usage; exit 0 ;;
     *) echo "Unknown flag: $1" >&2; exit 2 ;;
   esac
@@ -498,6 +505,27 @@ sanitize_nick() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' .' '--' | sed 's
 
 # The primary environment (PRIMARY_ENV) drops the -<env> suffix; all other envs keep it.
 env_sfx() { if [[ -n "$PRIMARY_ENV" && "$1" == "$PRIMARY_ENV" ]]; then printf ''; else printf -- '-%s' "$1"; fi; }
+
+# Print the objects this run will create or update, for review before proceeding.
+print_plan() {
+  local env i
+  echo
+  echo "Plan — objects to create or update (idempotent):"
+  for env in "${ENVS[@]}"; do
+    echo "  [$env]"
+    echo "    API app   ${PROJECT}-API$(env_sfx "$env")   (${AUDIENCES[$env]})"
+    [[ $HAS_SPA -eq 1 ]] && echo "    SPA app   ${PROJECT}-SPA$(env_sfx "$env")"
+    echo "    roles     ${ROLE_VALUES[*]}"
+    if [[ $DO_GROUPS -eq 1 ]]; then
+      for i in "${!ROLE_VALUES[@]}"; do
+        echo "    group     ${GROUP_PREFIX}${PROJECT}$(env_sfx "$env")-${ROLE_GROUP_LABELS[$i]}"
+      done
+    fi
+  done
+  [[ -n "${GRAPH_TO_API:-}${GRAPH_TO_SPA:-}" ]] && echo "  + Microsoft Graph permissions will be granted"
+  [[ -n "${SECRET_NAME:-}" ]] && echo "  + a client secret will be created for each API app"
+  echo
+}
 
 # Admin consent can 404 right after an app/SP is created (directory replication lag); retry briefly.
 admin_consent() {  # app_id
@@ -706,7 +734,7 @@ provision_env() {
     local label gname gnick gid
     for i in "${!ROLE_VALUES[@]}"; do
       label="${ROLE_GROUP_LABELS[$i]}"
-      gname="${PROJECT}$(env_sfx "$env")-${label}"
+      gname="${GROUP_PREFIX}${PROJECT}$(env_sfx "$env")-${label}"
       gnick=$(sanitize_nick "${SLUG}$(env_sfx "$env")-${label}")
       gid=$(az ad group show --group "$gname" --query id -o tsv 2>/dev/null || true)
       if [[ -z "$gid" ]]; then
@@ -740,6 +768,17 @@ CAP
 CAP
   fi
 }
+
+print_plan
+if [[ $ASSUME_YES -ne 1 ]]; then
+  if [[ -t 0 ]]; then
+    read -rp "Proceed with these changes? [y/N]: " _ans
+    [[ "$_ans" =~ ^[Yy] ]] || { echo "Aborted."; exit 1; }
+  else
+    echo "Non-interactive shell: re-run with --yes to proceed." >&2
+    exit 1
+  fi
+fi
 
 for env in "${ENVS[@]}"; do
   provision_env "$env"
@@ -1000,7 +1039,7 @@ function Invoke-ProvisionEnv {
     Write-Host "→ Groups + role assignments"
     foreach ($r in $Roles) {
       $label = $r.GroupLabel
-      $gname = "$Project$(Get-EnvSfx $EnvName)-$label"
+      $gname = "$GroupPrefix$Project$(Get-EnvSfx $EnvName)-$label"
       $gnick = Get-MailNickname "$Slug$(Get-EnvSfx $EnvName)-$label"
       $gid = ''
       try { $gid = az ad group show --group $gname --query id -o tsv 2>$null } catch { $gid = '' }
@@ -1056,6 +1095,33 @@ Write-Host "  Environments  : $($Envs -join ' ')"
 Write-Host "  SPA client    : $(if ($HasSpa) { 'yes' } else { 'no' })"
 Write-Host "  Groups        : $(if ($DoGroups) { 'yes' } else { 'no' })"
 Write-Host "════════════════════════════════════════════════════════════"
+
+function Show-Plan {
+  Write-Host ""
+  Write-Host "Plan — objects to create or update (idempotent):"
+  foreach ($e in $Envs) {
+    Write-Host "  [$e]"
+    Write-Host "    API app   $Project-API$(Get-EnvSfx $e)   ($($Audiences[$e]))"
+    if ($HasSpa) { Write-Host "    SPA app   $Project-SPA$(Get-EnvSfx $e)" }
+    Write-Host "    roles     $(($Roles | ForEach-Object { $_.Value }) -join ', ')"
+    if ($DoGroups) {
+      foreach ($r in $Roles) { Write-Host "    group     $GroupPrefix$Project$(Get-EnvSfx $e)-$($r.GroupLabel)" }
+    }
+  }
+  if ($GraphToApi -or $GraphToSpa) { Write-Host "  + Microsoft Graph permissions will be granted" }
+  if ($SecretName) { Write-Host "  + a client secret will be created for each API app" }
+  Write-Host ""
+}
+
+Show-Plan
+if (-not $Yes) {
+  if (-not [Console]::IsInputRedirected) {
+    $ans = Read-Host "Proceed with these changes? [y/N]"
+    if ($ans -notmatch '^[Yy]') { Write-Host "Aborted."; exit 1 }
+  } else {
+    Write-Error "Non-interactive shell: re-run with -Yes to proceed."; exit 1
+  }
+}
 
 foreach ($EnvName in $Envs) {
   Invoke-ProvisionEnv -EnvName $EnvName
@@ -1290,6 +1356,9 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.groups.hint": "one group per role",
       "sec.groups.switch": "Create a security group per role and assign it the role",
       "sec.groups.sub": 'group name <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edit labels in the role rows above',
+      "field.groupPrefix.label": "Group name prefix",
+      "field.groupPrefix.ph": "e.g. RES-SCC-",
+      "field.groupPrefix.help": 'Prepended to group display names only, e.g. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Blank = none.',
       "sec.graph.title": "Microsoft Graph permissions",
       "sec.graph.hint": "optional &middot; az ad app permission",
       "sec.graph.switch": "Grant Microsoft Graph permissions to the app registration(s)",
@@ -1397,6 +1466,9 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.groups.hint": "un groupe par rôle",
       "sec.groups.switch": "Créer un groupe de sécurité par rôle et lui attribuer le rôle",
       "sec.groups.sub": 'nom du groupe <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; modifiez les libellés dans les lignes de rôle ci-dessus',
+      "field.groupPrefix.label": "Préfixe de nom de groupe",
+      "field.groupPrefix.ph": "ex. RES-SCC-",
+      "field.groupPrefix.help": 'Ajouté uniquement devant les noms d’affichage des groupes, p. ex. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Vide = aucun.',
       "sec.graph.title": "Autorisations Microsoft Graph",
       "sec.graph.hint": "optionnel &middot; az ad app permission",
       "sec.graph.switch": "Accorder des autorisations Microsoft Graph aux inscriptions d’applications",
@@ -1504,6 +1576,9 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "sec.groups.hint": "un grupo por rol",
       "sec.groups.switch": "Crear un grupo de seguridad por rol y asignarle el rol",
       "sec.groups.sub": 'nombre del grupo <code>&lt;Project&gt;-&lt;env&gt;-&lt;label&gt;</code> &middot; edita las etiquetas en las filas de rol de arriba',
+      "field.groupPrefix.label": "Prefijo de nombre de grupo",
+      "field.groupPrefix.ph": "ej. RES-SCC-",
+      "field.groupPrefix.help": 'Se antepone solo a los nombres para mostrar de los grupos, p. ej. <code>RES-SCC-&lt;Project&gt;-&lt;label&gt;</code>. Vacío = ninguno.',
       "sec.graph.title": "Permisos de Microsoft Graph",
       "sec.graph.hint": "opcional &middot; az ad app permission",
       "sec.graph.switch": "Conceder permisos de Microsoft Graph a los registros de aplicaciones",
@@ -1679,6 +1754,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     }
     const hasSpa = $('hasSpa').checked;
     const doGroups = $('doGroups').checked;
+    const groupPrefix = $('groupPrefix').value.trim();
     const consentOn = $('doConsent').checked;
     const audience = $('audience').value;
     const primaryEnv = resolvePrimary(envs);
@@ -1713,7 +1789,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     const secretName = $('secretName').value.trim();
     const secretYears = parseInt($('secretYears').value, 10) || 1;
 
-    return { project, slug, envs, badEnvs, hasSpa, doGroups, consentOn, audience, primaryEnv, redirects, roles,
+    return { project, slug, envs, badEnvs, hasSpa, doGroups, groupPrefix, consentOn, audience, primaryEnv, redirects, roles,
              graphOn, graphApi, graphSpa, gperms, secretOn, secretName, secretYears };
   }
 
@@ -1856,6 +1932,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("#   ./" + outBase + " --only <env>    # a single environment");
     L.push("#   ./" + outBase + " --no-groups     # skip group creation + role assignment");
     L.push("#   ./" + outBase + " --no-consent    # skip the SPA admin-consent grant");
+    L.push("#   ./" + outBase + " --yes           # skip the confirmation prompt");
     L.push("#   ./" + outBase + " --tenant <id>   # target a specific tenant");
     L.push("set -euo pipefail");
     L.push("");
@@ -1864,6 +1941,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("SLUG=" + bashQuote(st.slug));
     L.push("HAS_SPA=" + (st.hasSpa ? 1 : 0));
     L.push("DO_GROUPS=" + (st.doGroups ? 1 : 0));
+    L.push("GROUP_PREFIX=" + bashQuote(st.doGroups ? (st.groupPrefix || "") : ""));
     L.push("SIGN_IN_AUDIENCE=" + bashQuote(st.audience));
     L.push("DO_CONSENT=" + (st.consentOn ? 1 : 0));
     L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
@@ -1931,13 +2009,15 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("  ./" + outBase + " -Only uat       # a single environment");
     L.push("  ./" + outBase + " -NoGroups       # skip group creation + role assignment");
     L.push("  ./" + outBase + " -NoConsent      # skip the SPA admin-consent grant");
+    L.push("  ./" + outBase + " -Yes            # skip the confirmation prompt");
     L.push("  ./" + outBase + " -Tenant <id>    # target a specific tenant");
     L.push("#>");
     L.push("param(");
     L.push("  [string]$Only,");
     L.push("  [string]$Tenant,");
     L.push("  [switch]$NoGroups,");
-    L.push("  [switch]$NoConsent");
+    L.push("  [switch]$NoConsent,");
+    L.push("  [switch]$Yes");
     L.push(")");
     L.push("$ErrorActionPreference = 'Stop'");
     L.push("if ($PSVersionTable.PSVersion.Major -ge 7) { $PSNativeCommandUseErrorActionPreference = $true }");
@@ -1947,6 +2027,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     L.push("$Slug           = " + psQuote(st.slug));
     L.push("$HasSpa         = $" + (st.hasSpa ? "true" : "false"));
     L.push("$DoGroups       = $" + (st.doGroups ? "true" : "false"));
+    L.push("$GroupPrefix    = " + psQuote(st.doGroups ? (st.groupPrefix || "") : ""));
     L.push("$SignInAudience = " + psQuote(st.audience));
     L.push(st.consentOn ? "$DoConsent      = -not $NoConsent" : "$DoConsent      = $false");
     L.push("# Primary environment: its resources omit the -<env> name suffix (empty = every env keeps its suffix).");
@@ -2084,7 +2165,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     try {
       localStorage.setItem('entra-prov-gen', JSON.stringify({
         project: $('project').value, envs: $('envs').value, audience: st.audience,
-        hasSpa: st.hasSpa, doGroups: st.doGroups, consentOn: st.consentOn,
+        hasSpa: st.hasSpa, doGroups: st.doGroups, groupPrefix: st.groupPrefix, consentOn: st.consentOn,
         primary: primaryChoice, redirects: st.redirects, shell,
         roles: Array.from($('roles').querySelectorAll('.role')).map(r => ({
           v: r.querySelector('.rv').value, d: r.querySelector('.rd').value,
@@ -2107,6 +2188,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     if (s.audience) $('audience').value = s.audience;
     $('hasSpa').checked = !!s.hasSpa;
     $('doGroups').checked = !!s.doGroups;
+    if (s.groupPrefix != null) $('groupPrefix').value = s.groupPrefix;
     $('doConsent').checked = s.consentOn !== false;
     primaryChoice = (s.primary !== undefined) ? s.primary : null;
     $('graphOn').checked = !!s.graphOn;
@@ -2181,6 +2263,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $('secretOn').checked = true;
     $('secretName').value = 'provisioner-generated';
     $('secretYears').value = '1';
+    $('groupPrefix').value = '';
     primaryChoice = null;
     lastRedirSig = '';
     syncDerivedUI(readState());
@@ -2207,13 +2290,14 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     $('secretOn').checked = false;
     $('secretName').value = 'provisioner-generated';
     $('secretYears').value = '1';
+    $('groupPrefix').value = '';
     primaryChoice = null;
     lastRedirSig = '';
     render();
   }
 
   // ── wire up ────────────────────────────────────────────────────────
-  ['project','envs','audience','hasSpa','doGroups','doConsent'].forEach(id =>
+  ['project','envs','audience','hasSpa','doGroups','groupPrefix','doConsent'].forEach(id =>
     $(id).addEventListener('input', render));
   $('hasSpa').addEventListener('change', render);
   $('doGroups').addEventListener('change', render);
