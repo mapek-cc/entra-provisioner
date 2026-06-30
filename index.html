@@ -766,6 +766,7 @@ CAP
     SPA (MSAL config):
       clientId    = $spa_app_id
       authority   = https://login.microsoftonline.com/$TENANT_ID
+      redirectUri = ${REDIRECTS[$env]}
       apiScopes   = ['$audience/access_as_user']
 CAP
   fi
@@ -1071,6 +1072,7 @@ function Invoke-ProvisionEnv {
     Write-Host "    SPA (MSAL config):"
     Write-Host "      clientId    = $spaAppId"
     Write-Host "      authority   = https://login.microsoftonline.com/$TenantId"
+    Write-Host "      redirectUri = $($Redirects[$EnvName] -join ' ')"
     Write-Host "      apiScopes   = ['$audience/access_as_user']"
   }
 }
