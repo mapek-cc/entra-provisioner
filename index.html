@@ -505,6 +505,8 @@ sanitize_nick() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' .' '--' | sed 's
 
 # The primary environment (PRIMARY_ENV) drops the -<env> suffix; all other envs keep it.
 env_sfx() { if [[ -n "$PRIMARY_ENV" && "$1" == "$PRIMARY_ENV" ]]; then printf ''; else printf -- '-%s' "$1"; fi; }
+# Same as env_sfx but uppercases the environment — used for group display names (e.g. -TEST).
+group_env_sfx() { if [[ -n "$PRIMARY_ENV" && "$1" == "$PRIMARY_ENV" ]]; then printf ''; else printf -- '-%s' "${1^^}"; fi; }
 
 # Print the objects this run will create or update, for review before proceeding.
 print_plan() {
@@ -518,7 +520,7 @@ print_plan() {
     echo "    roles     ${ROLE_VALUES[*]}"
     if [[ $DO_GROUPS -eq 1 ]]; then
       for i in "${!ROLE_VALUES[@]}"; do
-        echo "    group     ${GROUP_PREFIX}${PROJECT}$(env_sfx "$env")-${ROLE_GROUP_LABELS[$i]}"
+        echo "    group     ${GROUP_PREFIX}${PROJECT}$(group_env_sfx "$env")-${ROLE_GROUP_LABELS[$i]}"
       done
     fi
   done
@@ -734,7 +736,7 @@ provision_env() {
     local label gname gnick gid
     for i in "${!ROLE_VALUES[@]}"; do
       label="${ROLE_GROUP_LABELS[$i]}"
-      gname="${GROUP_PREFIX}${PROJECT}$(env_sfx "$env")-${label}"
+      gname="${GROUP_PREFIX}${PROJECT}$(group_env_sfx "$env")-${label}"
       gnick=$(sanitize_nick "${SLUG}$(env_sfx "$env")-${label}")
       gid=$(az ad group show --group "$gname" --query id -o tsv 2>/dev/null || true)
       if [[ -z "$gid" ]]; then
@@ -806,6 +808,8 @@ function Get-MailNickname {
 
 # The primary environment ($PrimaryEnv) drops the -<env> suffix; all other envs keep it.
 function Get-EnvSfx([string]$EnvName) { if ($PrimaryEnv -and $EnvName -eq $PrimaryEnv) { '' } else { "-$EnvName" } }
+# Same as Get-EnvSfx but uppercases the environment — used for group display names (e.g. -TEST).
+function Get-GroupEnvSfx([string]$EnvName) { if ($PrimaryEnv -and $EnvName -eq $PrimaryEnv) { '' } else { "-$($EnvName.ToUpper())" } }
 
 # Admin consent can 404 right after an app/SP is created (directory replication lag); retry briefly.
 function Invoke-AdminConsent([string]$AppId) {
@@ -1039,7 +1043,7 @@ function Invoke-ProvisionEnv {
     Write-Host "→ Groups + role assignments"
     foreach ($r in $Roles) {
       $label = $r.GroupLabel
-      $gname = "$GroupPrefix$Project$(Get-EnvSfx $EnvName)-$label"
+      $gname = "$GroupPrefix$Project$(Get-GroupEnvSfx $EnvName)-$label"
       $gnick = Get-MailNickname "$Slug$(Get-EnvSfx $EnvName)-$label"
       $gid = ''
       try { $gid = az ad group show --group $gname --query id -o tsv 2>$null } catch { $gid = '' }
@@ -1105,7 +1109,7 @@ function Show-Plan {
     if ($HasSpa) { Write-Host "    SPA app   $Project-SPA$(Get-EnvSfx $e)" }
     Write-Host "    roles     $(($Roles | ForEach-Object { $_.Value }) -join ', ')"
     if ($DoGroups) {
-      foreach ($r in $Roles) { Write-Host "    group     $GroupPrefix$Project$(Get-EnvSfx $e)-$($r.GroupLabel)" }
+      foreach ($r in $Roles) { Write-Host "    group     $GroupPrefix$Project$(Get-GroupEnvSfx $e)-$($r.GroupLabel)" }
     }
   }
   if ($GraphToApi -or $GraphToSpa) { Write-Host "  + Microsoft Graph permissions will be granted" }
