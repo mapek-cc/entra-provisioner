@@ -1338,6 +1338,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "err.rolesSomeInvalid": "Some role values are invalid (use letters, digits and . _ -) and were skipped.",
       "warn.spaNoRedirect": "Environment “{0}” has no SPA redirect URI.",
       "warn.notHttps": "“{0}” is not https (and not localhost) — Entra may reject it.",
+      "warn.redirectWildcard": "“{0}” contains “*” — Entra needs exact redirect URIs (no wildcards).",
       "err.graphNoSpa": "SPA app selected but no SPA is enabled — pick the API app or enable the SPA.",
       "err.graphNoTarget": "Select at least one target app (API and/or SPA).",
       "err.graphNoPerms": "Add at least one Microsoft Graph permission.",
@@ -1351,7 +1352,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "need.project": "a project name",
       "need.env": "at least one environment",
       "need.role": "at least one app role",
-      "need.redirect": "a redirect URI for every environment"
+      "need.redirect": "a redirect URI for every environment",
+      "need.redirectExact": "exact redirect URIs (Entra rejects wildcards like /**)"
     },
     fr: {
       "hdr.subtitle": 'Générez un script de provisionnement <span style="color:var(--ink)">az&nbsp;CLI</span> idempotent pour les inscriptions d’applications Entra ID',
@@ -1443,6 +1445,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "err.rolesSomeInvalid": "Certaines valeurs de rôle ne sont pas valides (utilisez lettres, chiffres et . _ -) et ont été ignorées.",
       "warn.spaNoRedirect": "L’environnement « {0} » n’a aucune URI de redirection SPA.",
       "warn.notHttps": "« {0} » n’est pas https (ni localhost) — Entra peut le rejeter.",
+      "warn.redirectWildcard": "« {0} » contient « * » — Entra exige des URI de redirection exactes (pas de caractères génériques).",
       "err.graphNoSpa": "App SPA sélectionnée mais aucun SPA n’est activé — choisissez l’app API ou activez le SPA.",
       "err.graphNoTarget": "Sélectionnez au moins une app cible (API et/ou SPA).",
       "err.graphNoPerms": "Ajoutez au moins une autorisation Microsoft Graph.",
@@ -1456,7 +1459,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "need.project": "un nom de projet",
       "need.env": "au moins un environnement",
       "need.role": "au moins un rôle d’application",
-      "need.redirect": "une URI de redirection pour chaque environnement"
+      "need.redirect": "une URI de redirection pour chaque environnement",
+      "need.redirectExact": "des URI de redirection exactes (Entra rejette les caractères génériques comme /**)"
     },
     es: {
       "hdr.subtitle": 'Genera un script de aprovisionamiento <span style="color:var(--ink)">az&nbsp;CLI</span> idempotente para los registros de aplicaciones de Entra ID',
@@ -1548,6 +1552,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "err.rolesSomeInvalid": "Algunos valores de rol no son válidos (usa letras, dígitos y . _ -) y se omitieron.",
       "warn.spaNoRedirect": "El entorno «{0}» no tiene URI de redirección de SPA.",
       "warn.notHttps": "«{0}» no es https (ni localhost) — Entra puede rechazarlo.",
+      "warn.redirectWildcard": "«{0}» contiene «*» — Entra requiere URI de redirección exactas (sin comodines).",
       "err.graphNoSpa": "App SPA seleccionada pero no hay SPA habilitado — elige la app API o habilita el SPA.",
       "err.graphNoTarget": "Selecciona al menos una app de destino (API y/o SPA).",
       "err.graphNoPerms": "Añade al menos un permiso de Microsoft Graph.",
@@ -1561,7 +1566,8 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       "need.project": "un nombre de proyecto",
       "need.env": "al menos un entorno",
       "need.role": "al menos un rol de aplicación",
-      "need.redirect": "una URI de redirección para cada entorno"
+      "need.redirect": "una URI de redirección para cada entorno",
+      "need.redirectExact": "URI de redirección exactas (Entra rechaza comodines como /**)"
     }
   };
   function t(key, params){
@@ -1789,7 +1795,9 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
         const uris = st.redirects[e] || [];
         if (!uris.length) warns.push(t('warn.spaNoRedirect', {0: e}));
         uris.forEach(u => {
-          if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u) && !/^http:\/\/127\.0\.0\.1/.test(u))
+          if (u.includes('*'))
+            warns.push(t('warn.redirectWildcard', {0: u}));
+          else if (!/^https:\/\//.test(u) && !/^http:\/\/localhost/.test(u) && !/^http:\/\/127\.0\.0\.1/.test(u))
             warns.push(t('warn.notHttps', {0: u}));
         });
       });
@@ -2029,8 +2037,12 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
     const fileBase = "entra-provision-" + (st.slug || "project");
     $('fname').textContent = fileBase + (shell === 'bash' ? '.sh' : '.ps1');
 
+    // Entra requires exact redirect URIs — reject any containing a wildcard.
+    const redirectsExact = !st.hasSpa || st.envs.every(e => (st.redirects[e] || []).every(u => !u.includes('*')));
+    document.querySelectorAll('#redirects input').forEach(i => i.classList.toggle('bad', i.value.includes('*')));
+
     const ok = st.project && st.slug && st.envs.length && realRoles.length &&
-               (!st.hasSpa || st.envs.every(e => (st.redirects[e] || []).length));
+               (!st.hasSpa || st.envs.every(e => (st.redirects[e] || []).length)) && redirectsExact;
 
     const code = $('code'), body = $('cbody');
     if (!ok){
@@ -2040,6 +2052,7 @@ foreach ($EnvName in $Envs) { Set-ClientSecret -EnvName $EnvName }
       if (!st.envs.length) need.push(t('need.env'));
       if (!realRoles.length) need.push(t('need.role'));
       if (st.hasSpa && st.envs.length && !st.envs.every(e => (st.redirects[e] || []).length)) need.push(t('need.redirect'));
+      if (st.hasSpa && !redirectsExact) need.push(t('need.redirectExact'));
       body.innerHTML = '<div class="placeholder"><b>' + escapeHtml(t('placeholder.awaiting')) + '</b><br>' +
         (need.length ? t('placeholder.needIntro') : t('placeholder.needNone')) +
         (need.length ? '<ul>' + need.map(n => '<li>' + escapeHtml(n) + '</li>').join('') + '</ul>' : '') +
